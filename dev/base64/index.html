@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Base64 Encode / Decode</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+a { color: #79b8ff; }
+
+header {
+  max-width: 960px;
+  margin: 0 auto 1.5rem;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .25rem;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+}
+
+.options label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 700px) {
+  .panels { grid-template-columns: 1fr; }
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-header h2 {
+  font-size: .95rem;
+  font-weight: 600;
+}
+
+.btn-row {
+  display: flex;
+  gap: .4rem;
+}
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+
+button.primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+
+button.primary:hover { background: #2ea043; }
+
+textarea {
+  width: 100%;
+  min-height: 260px;
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .75rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: .85rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.status {
+  font-size: .8rem;
+  min-height: 1.4em;
+  color: #8b949e;
+}
+
+.status.error { color: #f85149; }
+.status.ok { color: #3fb950; }
+
+.actions-center {
+  display: flex;
+  justify-content: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Dev /</div>
+  <h1>Base64 Encode / Decode</h1>
+</header>
+
+<div class="container">
+
+  <div class="options">
+    <label><input type="checkbox" id="opt-urlsafe"> URL-safe alphabet</label>
+    <label><input type="checkbox" id="opt-nopad"> Omit padding (=)</label>
+    <label><input type="checkbox" id="opt-live"> Live mode</label>
+  </div>
+
+  <div class="actions-center">
+    <button class="primary" id="btn-encode">Encode &rarr;</button>
+    <button class="primary" id="btn-decode">&larr; Decode</button>
+    <button id="btn-swap">&#8646; Swap</button>
+    <button id="btn-clear">Clear</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Text / Input</h2>
+        <div class="btn-row">
+          <button id="copy-left" title="Copy to clipboard">Copy</button>
+        </div>
+      </div>
+      <textarea id="input" placeholder="Type or paste text here..." spellcheck="false"></textarea>
+      <div class="status" id="status-left"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Base64</h2>
+        <div class="btn-row">
+          <button id="copy-right" title="Copy to clipboard">Copy</button>
+        </div>
+      </div>
+      <textarea id="output" placeholder="Base64 will appear here..." spellcheck="false"></textarea>
+      <div class="status" id="status-right"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.getElementById(s);
+
+const input     = $('input');
+const output    = $('output');
+const optUrl    = $('opt-urlsafe');
+const optNoPad  = $('opt-nopad');
+const optLive   = $('opt-live');
+const statusL   = $('status-left');
+const statusR   = $('status-right');
+
+function encode() {
+  try {
+    const text = input.value;
+    const bytes = new TextEncoder().encode(text);
+    let b64 = bytesToBase64(bytes);
+    if (optUrl.checked) b64 = b64.replace(/\+/g, '-').replace(/\//g, '_');
+    if (optNoPad.checked) b64 = b64.replace(/=+$/, '');
+    output.value = b64;
+    setStatus(statusR, `${b64.length} chars`, 'ok');
+    setStatus(statusL, `${text.length} chars, ${bytes.length} bytes`, '');
+  } catch (e) {
+    setStatus(statusR, e.message, 'error');
+  }
+}
+
+function decode() {
+  try {
+    let b64 = output.value.trim();
+    if (optUrl.checked) b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+    // Re-add padding if stripped
+    while (b64.length % 4 !== 0) b64 += '=';
+    const bytes = base64ToBytes(b64);
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    input.value = text;
+    setStatus(statusL, `${text.length} chars, ${bytes.length} bytes`, 'ok');
+    setStatus(statusR, `${output.value.trim().length} chars`, '');
+  } catch (e) {
+    setStatus(statusL, 'Decode error: ' + e.message, 'error');
+  }
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function setStatus(el, msg, cls) {
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+async function copyText(textarea, statusEl) {
+  try {
+    await navigator.clipboard.writeText(textarea.value);
+    setStatus(statusEl, 'Copied!', 'ok');
+    setTimeout(() => setStatus(statusEl, '', ''), 1500);
+  } catch {
+    textarea.select();
+    document.execCommand('copy');
+    setStatus(statusEl, 'Copied!', 'ok');
+    setTimeout(() => setStatus(statusEl, '', ''), 1500);
+  }
+}
+
+$('btn-encode').addEventListener('click', encode);
+$('btn-decode').addEventListener('click', decode);
+
+$('btn-swap').addEventListener('click', () => {
+  [input.value, output.value] = [output.value, input.value];
+  setStatus(statusL, '', '');
+  setStatus(statusR, '', '');
+});
+
+$('btn-clear').addEventListener('click', () => {
+  input.value = '';
+  output.value = '';
+  setStatus(statusL, '', '');
+  setStatus(statusR, '', '');
+});
+
+$('copy-left').addEventListener('click', () => copyText(input, statusL));
+$('copy-right').addEventListener('click', () => copyText(output, statusR));
+
+// Live mode
+input.addEventListener('input', () => { if (optLive.checked) encode(); });
+output.addEventListener('input', () => { if (optLive.checked) decode(); });
+optUrl.addEventListener('change', () => { if (optLive.checked && input.value) encode(); });
+optNoPad.addEventListener('change', () => { if (optLive.checked && input.value) encode(); });
+</script>
+</body>
+</html>

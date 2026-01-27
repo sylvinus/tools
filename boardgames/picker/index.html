@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Board Game Picker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+a { color: #79b8ff; }
+
+header {
+  max-width: 100%;
+  margin: 0 auto 1.5rem;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .25rem;
+}
+
+header h1 { font-size: 1.5rem; font-weight: 600; }
+
+.container {
+  max-width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Upload area */
+.upload-area {
+  background: #161b22;
+  border: 2px dashed #30363d;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.upload-area:hover, .upload-area.dragover {
+  border-color: #58a6ff;
+}
+
+.upload-area p { color: #8b949e; font-size: .9rem; margin-top: .5rem; }
+.upload-area input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Filters */
+.filters {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.filter-group label {
+  font-size: .8rem;
+  color: #8b949e;
+  font-weight: 500;
+}
+
+.filter-group input[type="number"],
+.filter-group input[type="text"],
+.filter-group select {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .4rem .5rem;
+  font-size: .85rem;
+  width: 70px;
+}
+
+.filter-group input[type="text"] { width: 120px; }
+.filter-group select { width: auto; min-width: 120px; }
+
+.filter-range {
+  display: flex;
+  gap: .3rem;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: .35rem;
+}
+
+/* Buttons */
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .4rem .8rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+
+button.primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  font-size: 1rem;
+  padding: .5rem 1.5rem;
+}
+
+button.primary:hover { background: #2ea043; }
+
+.actions {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.result-count {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-left: auto;
+}
+
+/* Picked game highlight */
+.picked-game {
+  display: none;
+  background: #1c2d1f;
+  border: 2px solid #2ea043;
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.picked-game.visible { display: block; }
+
+.picked-game h2 {
+  font-size: 1.4rem;
+  color: #3fb950;
+  margin-bottom: .25rem;
+}
+
+.picked-game .meta {
+  color: #8b949e;
+  font-size: .85rem;
+}
+
+.picked-game .meta span { margin: 0 .5rem; }
+
+/* Results table */
+.results-wrapper {
+  display: none;
+  overflow-x: auto;
+}
+
+.results-wrapper.visible { display: block; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+
+thead th {
+  background: #161b22;
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: .5rem .6rem;
+  border-bottom: 2px solid #30363d;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  color: #8b949e;
+  font-weight: 600;
+}
+
+thead th:hover { color: #e1e4e8; }
+thead th .sort-arrow { margin-left: .3rem; font-size: .7rem; }
+
+tbody tr {
+  border-bottom: 1px solid #21262d;
+  transition: background .1s;
+}
+
+tbody tr:hover { background: #161b22; }
+tbody tr.highlighted { background: #1c2d1f; }
+
+td {
+  padding: .45rem .6rem;
+  white-space: nowrap;
+}
+
+td.name-col {
+  white-space: normal;
+  max-width: 280px;
+}
+
+td.comment-col {
+  white-space: normal;
+  max-width: 200px;
+  color: #8b949e;
+  font-size: .8rem;
+}
+
+td.name-col a { text-decoration: none; }
+td.name-col a:hover { text-decoration: underline; }
+
+.player-best { color: #3fb950; font-weight: 600; }
+.player-rec { color: #d29922; }
+.dim { color: #484f58; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Board Games /</div>
+  <h1>Board Game Picker</h1>
+</header>
+
+<div class="container">
+
+  <div class="filters" id="filters">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label for="player-count">Players</label>
+        <input type="number" id="player-count" min="1" max="20" value="2">
+      </div>
+
+      <div class="filter-group">
+        <label for="player-match">Match type</label>
+        <select id="player-match">
+          <option value="best">Best only</option>
+          <option value="recommended" selected>Best or Recommended</option>
+          <option value="supports">Any supported</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Playtime (min)</label>
+        <div class="filter-range">
+          <input type="number" id="min-time" min="0" step="5" placeholder="min">
+          <input type="number" id="max-time" min="0" step="5" placeholder="max">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>Weight</label>
+        <div class="filter-range">
+          <input type="number" id="min-weight" min="1" max="5" step="0.1" placeholder="min">
+          <input type="number" id="max-weight" min="1" max="5" step="0.1" placeholder="max">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>BGG rating</label>
+        <div class="filter-range">
+          <input type="number" id="min-bgg-rating" min="1" max="10" step="0.1" placeholder="min">
+          <input type="number" id="max-bgg-rating" min="1" max="10" step="0.1" placeholder="max">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>My rating</label>
+        <div class="filter-range">
+          <input type="number" id="min-my-rating" min="1" max="10" step="1" placeholder="min">
+          <input type="number" id="max-my-rating" min="1" max="10" step="1" placeholder="max">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>Plays</label>
+        <div class="filter-range">
+          <input type="number" id="min-plays" min="0" step="1" placeholder="min">
+          <input type="number" id="max-plays" min="0" step="1" placeholder="max">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label for="note-search">Note contains</label>
+        <input type="text" id="note-search" placeholder="search...">
+      </div>
+
+      <div class="filter-group">
+        <label for="ownership">Show</label>
+        <select id="ownership">
+          <option value="own" selected>Owned</option>
+          <option value="all">All in collection</option>
+        </select>
+      </div>
+
+      <label class="checkbox-group">
+        <input type="checkbox" id="exclude-exp" checked> Exclude expansions
+      </label>
+
+      <label class="checkbox-group">
+        <input type="checkbox" id="exclude-forsale" checked> Exclude for sale
+      </label>
+    </div>
+  </div>
+
+  <label class="upload-area" id="upload-area">
+    <strong>Drop your BGG collection CSV here, or click to browse.</strong>
+    <p>To export: go to your <a href="https://boardgamegeek.com/" target="_blank" rel="noopener" onclick="event.stopPropagation()">BGG</a> collection page, click the <b>&#8942;</b> menu above your list, then <b>Export Collection to CSV</b>.</p>
+    <input type="file" id="file-input" accept=".csv">
+  </label>
+
+  <div class="actions" id="actions" style="display:none">
+    <button class="primary" id="btn-pick">Pick a random game</button>
+    <button id="btn-reset-file">Load different CSV</button>
+    <span class="result-count" id="result-count"></span>
+  </div>
+
+  <div class="picked-game" id="picked-game"></div>
+
+  <div class="results-wrapper" id="results-wrapper">
+    <table>
+      <thead>
+        <tr id="thead-row">
+          <th data-col="objectname">Name <span class="sort-arrow"></span></th>
+          <th data-col="yearpublished">Year <span class="sort-arrow"></span></th>
+          <th data-col="bggbestplayers">Best @<span class="sort-arrow"></span></th>
+          <th data-col="bggrecplayers">Rec @<span class="sort-arrow"></span></th>
+          <th data-col="playingtime">Time <span class="sort-arrow"></span></th>
+          <th data-col="rank">Rank <span class="sort-arrow"></span></th>
+          <th data-col="baverage">Rating <span class="sort-arrow"></span></th>
+          <th data-col="rating">My rating <span class="sort-arrow"></span></th>
+          <th data-col="avgweight">Weight <span class="sort-arrow"></span></th>
+          <th data-col="numplays">Plays <span class="sort-arrow"></span></th>
+          <th data-col="comment">Comment <span class="sort-arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let allGames = [];
+let filtered = [];
+let sortCol = 'baverage';
+let sortAsc = false;
+
+// --- CSV Parsing ---
+function* parseCSVGen(text) {
+  let pos = 0;
+  const len = text.length;
+
+  function readField() {
+    if (pos >= len) return '';
+    if (text[pos] === '"') {
+      pos++;
+      let val = '';
+      while (pos < len) {
+        if (text[pos] === '"') {
+          if (text[pos + 1] === '"') { val += '"'; pos += 2; }
+          else { pos++; break; }
+        } else {
+          val += text[pos++];
+        }
+      }
+      return val;
+    }
+    let val = '';
+    while (pos < len && text[pos] !== ',' && text[pos] !== '\n' && text[pos] !== '\r') {
+      val += text[pos++];
+    }
+    return val;
+  }
+
+  while (pos < len) {
+    const row = [];
+    do {
+      row.push(readField());
+      if (pos < len && text[pos] === ',') { pos++; continue; }
+      break;
+    } while (true);
+    if (pos < len && text[pos] === '\r') pos++;
+    if (pos < len && text[pos] === '\n') pos++;
+    yield row;
+  }
+}
+
+function loadCSV(text) {
+  const gen = parseCSVGen(text);
+  const headerRow = gen.next().value;
+  if (!headerRow) return;
+
+  const headers = headerRow.map(h => h.trim().toLowerCase());
+  const games = [];
+
+  for (const cols of gen) {
+    if (cols.length < 2) continue;
+    const row = {};
+    headers.forEach((h, i) => row[h] = (cols[i] || '').trim());
+    games.push(row);
+  }
+
+  allGames = games;
+  $('upload-area').style.display = 'none';
+  $('actions').style.display = 'flex';
+  $('results-wrapper').classList.add('visible');
+  applyFilters();
+}
+
+// --- Filtering ---
+function parseList(val) {
+  if (!val) return [];
+  return val.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function applyFilters() {
+  const pc = parseInt($('player-count').value) || 0;
+  const matchType = $('player-match').value;
+  const minTime = parseInt($('min-time').value) || 0;
+  const maxTime = parseInt($('max-time').value) || 0;
+  const minWeight = parseFloat($('min-weight').value) || 0;
+  const maxWeight = parseFloat($('max-weight').value) || 0;
+  const minBggRating = parseFloat($('min-bgg-rating').value) || 0;
+  const maxBggRating = parseFloat($('max-bgg-rating').value) || 0;
+  const minMyRating = parseFloat($('min-my-rating').value) || 0;
+  const maxMyRating = parseFloat($('max-my-rating').value) || 0;
+  const minPlays = parseInt($('min-plays').value);
+  const maxPlays = parseInt($('max-plays').value);
+  const noteSearch = $('note-search').value.trim().toLowerCase();
+  const ownOnly = $('ownership').value === 'own';
+  const noExp = $('exclude-exp').checked;
+  const noForSale = $('exclude-forsale').checked;
+
+  filtered = allGames.filter(g => {
+    if (noExp && g.itemtype === 'expansion') return false;
+    if (noForSale && g.fortrade === '1') return false;
+    if (ownOnly && g.own !== '1') return false;
+
+    // Player count
+    if (pc > 0) {
+      const minP = parseInt(g.minplayers) || 0;
+      const maxP = parseInt(g.maxplayers) || 0;
+      if (pc < minP || pc > maxP) return false;
+
+      const best = parseList(g.bggbestplayers);
+      const rec = parseList(g.bggrecplayers);
+      const pcStr = String(pc);
+
+      if (matchType === 'best' && !best.includes(pcStr)) return false;
+      if (matchType === 'recommended' && !best.includes(pcStr) && !rec.includes(pcStr)) return false;
+    }
+
+    if (minTime > 0) {
+      const t = parseInt(g.playingtime) || 0;
+      if (t < minTime) return false;
+    }
+
+    if (maxTime > 0) {
+      const t = parseInt(g.playingtime) || 0;
+      if (t > maxTime) return false;
+    }
+
+    if (minWeight > 0) {
+      const w = parseFloat(g.avgweight) || 0;
+      if (w < minWeight) return false;
+    }
+
+    if (maxWeight > 0) {
+      const w = parseFloat(g.avgweight) || 0;
+      if (w > maxWeight) return false;
+    }
+
+    if (minBggRating > 0) {
+      const r = parseFloat(g.baverage) || 0;
+      if (r < minBggRating) return false;
+    }
+
+    if (maxBggRating > 0) {
+      const r = parseFloat(g.baverage) || 0;
+      if (r > maxBggRating) return false;
+    }
+
+    if (minMyRating > 0) {
+      const r = parseFloat(g.rating) || 0;
+      if (r < minMyRating) return false;
+    }
+
+    if (maxMyRating > 0) {
+      const r = parseFloat(g.rating) || 0;
+      if (r > maxMyRating) return false;
+    }
+
+    if (!isNaN(minPlays)) {
+      const p = parseInt(g.numplays) || 0;
+      if (p < minPlays) return false;
+    }
+
+    if (!isNaN(maxPlays)) {
+      const p = parseInt(g.numplays) || 0;
+      if (p > maxPlays) return false;
+    }
+
+    if (noteSearch) {
+      const comment = (g.comment || '').toLowerCase();
+      if (!comment.includes(noteSearch)) return false;
+    }
+
+    return true;
+  });
+
+  sortFiltered();
+  render();
+}
+
+// --- Sorting ---
+function playerFitScore(g) {
+  const pc = String(parseInt($('player-count').value) || 0);
+  const best = parseList(g.bggbestplayers);
+  const rec = parseList(g.bggrecplayers);
+  if (best.includes(pc)) return 2;
+  if (rec.includes(pc)) return 1;
+  return 0;
+}
+
+function sortFiltered() {
+  filtered.sort((a, b) => {
+    let va, vb;
+    if (sortCol === 'objectname' || sortCol === 'comment') {
+      va = (a[sortCol] || '').toLowerCase();
+      vb = (b[sortCol] || '').toLowerCase();
+      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    if (sortCol === 'bggbestplayers' || sortCol === 'bggrecplayers') {
+      va = (a[sortCol] || '');
+      vb = (b[sortCol] || '');
+      return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    } else {
+      va = parseFloat(a[sortCol]) || 0;
+      vb = parseFloat(b[sortCol]) || 0;
+    }
+    return sortAsc ? va - vb : vb - va;
+  });
+}
+
+// --- Rendering ---
+function render() {
+  const pc = String(parseInt($('player-count').value) || 0);
+  $('result-count').textContent = `${filtered.length} game${filtered.length !== 1 ? 's' : ''} match`;
+
+  const tbody = $('tbody');
+  tbody.innerHTML = '';
+
+  for (const g of filtered) {
+    const tr = document.createElement('tr');
+    const best = parseList(g.bggbestplayers);
+    const rec = parseList(g.bggrecplayers);
+    const isBest = best.includes(pc);
+    const isRec = rec.includes(pc);
+
+    const bestClass = isBest ? ' class="player-best"' : '';
+    const recClass = isRec ? ' class="player-rec"' : isBest ? ' class="player-best"' : '';
+
+    const bggRating = parseFloat(g.baverage);
+    const myRating = parseFloat(g.rating);
+    const weight = parseFloat(g.avgweight);
+
+    tr.innerHTML = `
+      <td class="name-col"><a href="https://boardgamegeek.com/boardgame/${g.objectid}" target="_blank" rel="noopener">${esc(g.objectname)}</a></td>
+      <td>${g.yearpublished || ''}</td>
+      <td${bestClass}>${best.join(', ')}</td>
+      <td${recClass}>${rec.join(', ')}</td>
+      <td>${g.playingtime || ''}</td>
+      <td>${g.rank && g.rank !== '0' ? g.rank : ''}</td>
+      <td>${bggRating ? bggRating.toFixed(1) : ''}</td>
+      <td>${myRating ? myRating.toFixed(0) : '<span class="dim">-</span>'}</td>
+      <td>${weight ? weight.toFixed(1) : ''}</td>
+      <td>${g.numplays || '0'}</td>
+      <td class="comment-col">${esc(g.comment || '')}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.querySelectorAll('#thead-row th').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (th.dataset.col === sortCol) {
+      arrow.textContent = sortAsc ? '\u25B2' : '\u25BC';
+    } else {
+      arrow.textContent = '';
+    }
+  });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Pick random ---
+function pickRandom() {
+  if (filtered.length === 0) return;
+  const g = filtered[Math.floor(Math.random() * filtered.length)];
+  const best = parseList(g.bggbestplayers);
+  const rec = parseList(g.bggrecplayers);
+  const pc = String(parseInt($('player-count').value) || 0);
+  const fit = best.includes(pc) ? 'Best' : rec.includes(pc) ? 'Recommended' : '';
+  const bggRating = parseFloat(g.baverage);
+  const myRating = parseFloat(g.rating);
+  const weight = parseFloat(g.avgweight);
+
+  $('picked-game').classList.add('visible');
+  $('picked-game').innerHTML = `
+    <h2><a href="https://boardgamegeek.com/boardgame/${g.objectid}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(g.objectname)}</a></h2>
+    <div class="meta">
+      ${g.yearpublished ? `<span>${g.yearpublished}</span>` : ''}
+      ${g.playingtime ? `<span>${g.playingtime} min</span>` : ''}
+      ${bggRating ? `<span>BGG: ${bggRating.toFixed(1)}</span>` : ''}
+      ${myRating ? `<span>Mine: ${myRating.toFixed(0)}</span>` : ''}
+      ${weight ? `<span>Weight: ${weight.toFixed(1)}</span>` : ''}
+      ${fit ? `<span>${fit} @ ${pc}p</span>` : ''}
+    </div>
+  `;
+
+  document.querySelectorAll('#tbody tr').forEach(tr => tr.classList.remove('highlighted'));
+  const rows = $('tbody').querySelectorAll('tr');
+  const idx = filtered.indexOf(g);
+  if (rows[idx]) {
+    rows[idx].classList.add('highlighted');
+    rows[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// --- Event wiring ---
+
+const uploadArea = $('upload-area');
+const fileInput = $('file-input');
+
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => loadCSV(reader.result);
+  reader.readAsText(file);
+}
+
+// Filters
+['player-count', 'player-match', 'min-time', 'max-time', 'min-weight', 'max-weight', 'min-bgg-rating', 'max-bgg-rating', 'min-my-rating', 'max-my-rating', 'min-plays', 'max-plays', 'ownership', 'exclude-exp', 'exclude-forsale']
+  .forEach(id => $(id).addEventListener('change', applyFilters));
+['player-count', 'min-time', 'max-time', 'min-weight', 'max-weight', 'min-bgg-rating', 'max-bgg-rating', 'min-my-rating', 'max-my-rating', 'min-plays', 'max-plays', 'note-search']
+  .forEach(id => $(id).addEventListener('input', applyFilters));
+
+// Sort
+document.querySelectorAll('#thead-row th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = col === 'objectname' || col === 'comment'; }
+    sortFiltered();
+    render();
+  });
+});
+
+// Pick
+$('btn-pick').addEventListener('click', pickRandom);
+
+// Reset
+$('btn-reset-file').addEventListener('click', () => {
+  allGames = [];
+  filtered = [];
+  $('tbody').innerHTML = '';
+  $('result-count').textContent = '';
+  $('picked-game').classList.remove('visible');
+  $('picked-game').innerHTML = '';
+  $('actions').style.display = 'none';
+  $('results-wrapper').classList.remove('visible');
+  $('upload-area').style.display = '';
+  fileInput.value = '';
+});
+</script>
+</body>
+</html>
