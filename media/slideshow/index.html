@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slideshow</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+a { color: #79b8ff; }
+
+header {
+  max-width: 960px;
+  margin: 0 auto 1.5rem;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .25rem;
+}
+
+header h1 { font-size: 1.5rem; font-weight: 600; }
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Upload area */
+.upload-area {
+  background: #161b22;
+  border: 2px dashed #30363d;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.upload-area:hover, .upload-area.dragover {
+  border-color: #58a6ff;
+}
+
+.upload-area p { color: #8b949e; font-size: .9rem; margin-top: .5rem; }
+.upload-area input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Controls bar */
+.controls {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  display: none;
+  flex-direction: column;
+  gap: .6rem;
+}
+
+.controls.visible { display: flex; }
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  align-items: center;
+}
+
+.controls .group {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+}
+
+.controls label {
+  color: #8b949e;
+  font-size: .8rem;
+  font-weight: 500;
+}
+
+.controls input[type="number"] {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .5rem;
+  font-size: .85rem;
+  width: 65px;
+}
+
+.controls input[type="number"]:focus,
+.controls select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.controls select {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .5rem;
+  font-size: .85rem;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .8rem;
+  color: #8b949e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.controls .spacer { flex: 1; }
+
+.image-count {
+  font-size: .8rem;
+  color: #8b949e;
+}
+
+.icon-btn {
+  padding: .4rem .5rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  vertical-align: middle;
+}
+
+.sep {
+  width: 1px;
+  height: 1.2rem;
+  background: #30363d;
+}
+
+/* Buttons */
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .4rem .8rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+
+button.primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+
+button.primary:hover { background: #2ea043; }
+
+/* Thumbnail grid */
+.thumb-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.thumb-grid.visible { display: grid; }
+
+.thumb-item {
+  position: relative;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  overflow: visible;
+  cursor: grab;
+  transition: opacity .15s;
+  background: #161b22;
+}
+
+.thumb-item:hover .thumb-img { border-color: #58a6ff; }
+
+.thumb-item.dragging { opacity: .3; }
+
+.thumb-img {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid #30363d;
+  transition: border-color .15s;
+}
+
+.thumb-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* Drop insertion indicators */
+.thumb-item.drop-before::before,
+.thumb-item.drop-after::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  background: #58a6ff;
+  border-radius: 2px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.thumb-item.drop-before::before { left: -6px; }
+.thumb-item.drop-after::after { right: -6px; }
+
+.thumb-item .index-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0,0,0,.7);
+  color: #e1e4e8;
+  font-size: .7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.thumb-item .remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,.7);
+  color: #f85149;
+  border: none;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: .8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+  padding: 0;
+  z-index: 1;
+}
+
+.thumb-item:hover .remove-btn { opacity: 1; }
+.thumb-item .remove-btn:hover { background: rgba(248,81,73,.3); }
+
+/* PDF loading status */
+.pdf-status {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  font-size: .85rem;
+  color: #8b949e;
+  display: none;
+}
+
+.pdf-status.visible { display: block; }
+.pdf-status .progress-bar {
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  margin-top: .5rem;
+  overflow: hidden;
+}
+.pdf-status .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  border-radius: 2px;
+  transition: width .2s;
+  width: 0;
+}
+
+/* Drop overlay (for adding files when already loaded) */
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(15, 17, 23, .85);
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed #58a6ff;
+}
+
+.drop-overlay.visible { display: flex; }
+
+.drop-overlay span {
+  color: #58a6ff;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Fullscreen slideshow overlay */
+.slideshow-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  flex-direction: column;
+}
+
+.slideshow-overlay.active {
+  display: flex;
+}
+
+.slideshow-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  cursor: none;
+}
+
+.slideshow-stage.ended { cursor: pointer; }
+
+.slideshow-stage.controls-visible { cursor: default; }
+
+.slideshow-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Slideshow bottom bar */
+.slideshow-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,.8));
+  padding: 2rem 1.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+
+.slideshow-bar.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.slideshow-bar button {
+  background: rgba(255,255,255,.15);
+  border-color: rgba(255,255,255,.2);
+  color: #fff;
+  padding: .5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slideshow-bar button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.slideshow-bar button:hover { background: rgba(255,255,255,.25); }
+
+.slideshow-counter {
+  position: absolute;
+  right: 1.5rem;
+  color: rgba(255,255,255,.7);
+  font-size: .85rem;
+}
+
+/* End screen */
+.slideshow-end {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 1.5rem;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.slideshow-end.visible { display: flex; }
+
+.slideshow-end span {
+  color: rgba(255,255,255,.2);
+  font-size: .85rem;
+  transition: color .2s;
+}
+
+.slideshow-end:hover span { color: rgba(255,255,255,.4); }
+
+.slideshow-end kbd {
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 4px;
+  padding: .15rem .45rem;
+  font-family: inherit;
+  font-size: inherit;
+  transition: border-color .2s;
+}
+
+.slideshow-end:hover kbd { border-color: rgba(255,255,255,.3); }
+
+/* Progress bar for auto-play */
+.slideshow-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: #58a6ff;
+  transition: width linear;
+  width: 0;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Slideshow</h1>
+</header>
+
+<div class="container">
+
+  <div class="upload-area" id="upload-area">
+    <strong>Drop images, PDFs, or a folder here, or click to browse.</strong>
+    <p>Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. All files stay in your browser.</p>
+    <input type="file" id="file-input" accept="image/*,.pdf,application/pdf" multiple>
+    <input type="file" id="folder-input" accept="image/*,.pdf,application/pdf" webkitdirectory>
+  </div>
+
+  <div class="controls" id="controls">
+    <div class="controls-row">
+      <button class="primary icon-btn" id="btn-play"><svg viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg> Start Slideshow</button>
+      <button class="icon-btn" id="btn-add-more"><svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" fill="none"/></svg> Add files</button>
+      <button class="icon-btn" id="btn-add-folder"><svg viewBox="0 0 16 16"><path d="M1 3h5l1.5 1.5H15v9.5H1z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4M6 9h4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Add folder</button>
+      <button class="icon-btn" id="btn-clear-all"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" fill="none"/></svg> Clear all</button>
+
+      <div class="group">
+        <label for="sort-order">Order</label>
+        <select id="sort-order">
+          <option value="custom">Custom</option>
+          <option value="name-asc">Name A&#8594;Z</option>
+          <option value="name-desc">Name Z&#8594;A</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="date-desc">Newest first</option>
+          <option value="reverse">Reverse current</option>
+          <option value="random">Randomize</option>
+        </select>
+      </div>
+
+      <div class="spacer"></div>
+      <span class="image-count" id="image-count"></span>
+    </div>
+
+    <div class="controls-row">
+      <div class="group">
+        <label for="interval">Auto-advance (s)</label>
+        <input type="number" id="interval" min="0" step="0.5" value="0" title="0 = manual only">
+      </div>
+
+      <label class="checkbox-group">
+        <input type="checkbox" id="opt-loop"> Loop
+      </label>
+
+      <label class="checkbox-group">
+        <input type="checkbox" id="opt-fullscreen" checked> Fullscreen
+      </label>
+
+      <label class="checkbox-group" id="opt-progress-group" style="display:none">
+        <input type="checkbox" id="opt-show-progress" checked> Progress bar
+      </label>
+    </div>
+  </div>
+
+  <div class="pdf-status" id="pdf-status">
+    <span id="pdf-status-text">Rendering PDF...</span>
+    <div class="progress-bar"><div class="progress-fill" id="pdf-progress"></div></div>
+  </div>
+
+  <div class="thumb-grid" id="thumb-grid"></div>
+</div>
+
+<!-- Drop overlay for adding files when already loaded -->
+<div class="drop-overlay" id="drop-overlay"><span>Drop to add slides</span></div>
+
+<!-- Fullscreen slideshow overlay -->
+<div class="slideshow-overlay" id="slideshow-overlay">
+  <div class="slideshow-stage" id="slideshow-stage">
+    <div class="slideshow-progress" id="slideshow-progress"></div>
+    <img id="slideshow-img" src="" alt="">
+    <div class="slideshow-end" id="slideshow-end"><span><kbd>Escape</kbd> to exit</span></div>
+    <div class="slideshow-bar" id="slideshow-bar">
+      <button class="icon-btn" id="ss-prev" title="Previous (Left arrow)"><svg viewBox="0 0 16 16"><path d="M10 2L4 8l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="icon-btn" id="ss-next" title="Next (Right arrow)"><svg viewBox="0 0 16 16"><path d="M6 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="icon-btn" id="ss-exit" title="Exit (Escape)"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <span class="slideshow-counter" id="ss-counter"></span>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+// --- State ---
+let slides = [];       // { name, url, file, lastModified }
+let currentIndex = 0;
+let autoTimer = null;
+let autoStart = 0;
+let autoInterval = 0;
+let barTimeout = null;
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
+
+// --- PDF.js ---
+let pdfjsLib = null;
+
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+async function renderPdfToImages(file) {
+  const lib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdf.numPages;
+  const images = [];
+
+  const statusEl = $('pdf-status');
+  const statusText = $('pdf-status-text');
+  const progressBar = $('pdf-progress');
+  statusEl.classList.add('visible');
+
+  const baseName = file.name.replace(/\.pdf$/i, '');
+
+  for (let i = 1; i <= numPages; i++) {
+    statusText.textContent = `Rendering ${file.name} \u2014 page ${i} / ${numPages}`;
+    progressBar.style.width = `${(i / numPages) * 100}%`;
+
+    const page = await pdf.getPage(i);
+    const scale = 2; // render at 2x for good quality
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // Convert canvas to blob
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const url = URL.createObjectURL(blob);
+    const pageNum = String(i).padStart(String(numPages).length, '0');
+    images.push({
+      name: `${baseName} p${pageNum}`,
+      url,
+      file: null,
+      lastModified: file.lastModified
+    });
+  }
+
+  statusEl.classList.remove('visible');
+  progressBar.style.width = '0';
+  return images;
+}
+
+// --- Upload handling ---
+const uploadArea = $('upload-area');
+const fileInput = $('file-input');
+const folderInput = $('folder-input');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) addFiles(Array.from(fileInput.files));
+  fileInput.value = '';
+});
+folderInput.addEventListener('change', () => {
+  if (folderInput.files.length) addFiles(Array.from(folderInput.files));
+  folderInput.value = '';
+});
+
+async function handleDrop(dt) {
+  if (dt.items && dt.items.length) {
+    const entries = [];
+    for (const item of dt.items) {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) entries.push(entry);
+    }
+    if (entries.some(e => e.isDirectory)) {
+      const files = await readEntries(entries);
+      await addFiles(files);
+      return;
+    }
+  }
+  await addFiles(Array.from(dt.files));
+}
+
+function readEntries(entries) {
+  return new Promise(resolve => {
+    const files = [];
+    let pending = 0;
+
+    function traverse(entry) {
+      if (entry.isFile) {
+        pending++;
+        entry.file(f => {
+          if (IMAGE_TYPES.includes(f.type) || f.type === 'application/pdf') files.push(f);
+          if (--pending === 0) resolve(files);
+        });
+      } else if (entry.isDirectory) {
+        pending++;
+        entry.createReader().readEntries(children => {
+          for (const child of children) traverse(child);
+          if (--pending === 0) resolve(files);
+        });
+      }
+    }
+
+    for (const e of entries) traverse(e);
+    if (pending === 0) resolve(files);
+  });
+}
+
+async function addFiles(files) {
+  // Separate images and PDFs
+  const imageFiles = files.filter(f => IMAGE_TYPES.includes(f.type));
+  const pdfFiles = files.filter(f => f.type === 'application/pdf');
+
+  // Sort images by name
+  imageFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  pdfFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+  for (const file of imageFiles) {
+    const url = URL.createObjectURL(file);
+    slides.push({ name: file.name, url, file, lastModified: file.lastModified });
+  }
+
+  // Render PDFs to images
+  for (const pdf of pdfFiles) {
+    const pdfImages = await renderPdfToImages(pdf);
+    slides.push(...pdfImages);
+  }
+
+  if (imageFiles.length === 0 && pdfFiles.length === 0) return;
+
+  uploadArea.style.display = 'none';
+  $('controls').classList.add('visible');
+  $('thumb-grid').classList.add('visible');
+  $('sort-order').value = 'custom';
+  renderThumbnails();
+}
+
+// --- Global drag-and-drop (works anywhere on the page) ---
+let dragCounter = 0;
+const dropOverlay = $('drop-overlay');
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+document.addEventListener('dragenter', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter++;
+  if ($('slideshow-overlay').classList.contains('active')) return;
+  if (slides.length > 0) {
+    dropOverlay.classList.add('visible');
+  } else {
+    uploadArea.classList.add('dragover');
+  }
+});
+
+document.addEventListener('dragleave', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dropOverlay.classList.remove('visible');
+    uploadArea.classList.remove('dragover');
+  }
+});
+
+document.addEventListener('dragover', e => {
+  if (isFileDrag(e)) e.preventDefault();
+});
+
+document.addEventListener('drop', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove('visible');
+  uploadArea.classList.remove('dragover');
+  handleDrop(e.dataTransfer);
+});
+
+// --- Sorting ---
+$('sort-order').addEventListener('change', () => {
+  const order = $('sort-order').value;
+  if (order === 'custom') return;
+
+  if (order === 'reverse') {
+    slides.reverse();
+    $('sort-order').value = 'custom';
+  } else if (order === 'random') {
+    for (let i = slides.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slides[i], slides[j]] = [slides[j], slides[i]];
+    }
+    $('sort-order').value = 'custom';
+  } else if (order === 'name-asc') {
+    slides.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  } else if (order === 'name-desc') {
+    slides.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' }));
+  } else if (order === 'date-asc') {
+    slides.sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
+  } else if (order === 'date-desc') {
+    slides.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+  }
+
+  renderThumbnails();
+});
+
+// --- Add more images ---
+$('btn-add-more').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,.pdf,application/pdf';
+  input.multiple = true;
+  input.addEventListener('change', () => {
+    if (input.files.length) addFiles(Array.from(input.files));
+  });
+  input.click();
+});
+
+$('btn-add-folder').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.webkitdirectory = true;
+  input.addEventListener('change', () => {
+    if (input.files.length) addFiles(Array.from(input.files));
+  });
+  input.click();
+});
+
+// --- Clear all ---
+$('btn-clear-all').addEventListener('click', () => {
+  for (const s of slides) URL.revokeObjectURL(s.url);
+  slides = [];
+  $('thumb-grid').innerHTML = '';
+  $('thumb-grid').classList.remove('visible');
+  $('controls').classList.remove('visible');
+  $('sort-order').value = 'custom';
+  uploadArea.style.display = '';
+});
+
+// --- Thumbnails with drag-to-reorder ---
+let dragIdx = null;
+let dropTarget = null; // { index, side: 'before'|'after' }
+
+function clearDropIndicators() {
+  document.querySelectorAll('.thumb-item.drop-before, .thumb-item.drop-after').forEach(el => {
+    el.classList.remove('drop-before', 'drop-after');
+  });
+}
+
+function getInsertIndex() {
+  if (!dropTarget) return -1;
+  let insertAt = dropTarget.side === 'before' ? dropTarget.index : dropTarget.index + 1;
+  if (dragIdx < insertAt) insertAt--;
+  return insertAt;
+}
+
+function renderThumbnails() {
+  const grid = $('thumb-grid');
+  grid.innerHTML = '';
+
+  slides.forEach((slide, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb-item';
+    div.draggable = true;
+    div.dataset.index = i;
+
+    div.innerHTML = `
+      <div class="thumb-img">
+        <img src="${slide.url}" alt="${esc(slide.name)}" loading="lazy">
+      </div>
+      <span class="index-badge">${i + 1}</span>
+      <button class="remove-btn" title="Remove">&times;</button>
+    `;
+
+    // Remove button
+    div.querySelector('.remove-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      URL.revokeObjectURL(slides[i].url);
+      slides.splice(i, 1);
+      if (slides.length === 0) {
+        $('thumb-grid').classList.remove('visible');
+        $('controls').classList.remove('visible');
+        uploadArea.style.display = '';
+      }
+      renderThumbnails();
+    });
+
+    // Click to preview in slideshow at that index
+    div.addEventListener('click', () => {
+      currentIndex = parseInt(div.dataset.index);
+      openSlideshow();
+    });
+
+    // Drag events
+    div.addEventListener('dragstart', e => {
+      dragIdx = i;
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      clearDropIndicators();
+      dragIdx = null;
+      dropTarget = null;
+    });
+
+    div.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragIdx === null) return;
+      const idx = parseInt(div.dataset.index);
+      if (idx === dragIdx) { clearDropIndicators(); dropTarget = null; return; }
+
+      const rect = div.getBoundingClientRect();
+      const side = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
+
+      // Skip no-op positions adjacent to the dragged item
+      if (side === 'after' && idx === dragIdx - 1) { clearDropIndicators(); dropTarget = null; return; }
+      if (side === 'before' && idx === dragIdx + 1) { clearDropIndicators(); dropTarget = null; return; }
+
+      clearDropIndicators();
+      div.classList.add(side === 'before' ? 'drop-before' : 'drop-after');
+      dropTarget = { index: idx, side };
+    });
+
+    div.addEventListener('dragleave', () => {
+      div.classList.remove('drop-before', 'drop-after');
+    });
+
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      clearDropIndicators();
+      if (dragIdx === null || !dropTarget) return;
+      const insertAt = getInsertIndex();
+      if (insertAt < 0 || insertAt === dragIdx) return;
+      const [moved] = slides.splice(dragIdx, 1);
+      slides.splice(insertAt, 0, moved);
+      dragIdx = null;
+      dropTarget = null;
+      $('sort-order').value = 'custom';
+      renderThumbnails();
+    });
+
+    grid.appendChild(div);
+  });
+
+  $('image-count').textContent = `${slides.length} slide${slides.length !== 1 ? 's' : ''}`;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Expose for testing
+window.addFiles = addFiles;
+
+// --- Slideshow ---
+let ended = false;
+
+$('btn-play').addEventListener('click', () => {
+  currentIndex = 0;
+  openSlideshow();
+});
+
+function isLooping() { return $('opt-loop').checked; }
+
+function openSlideshow() {
+  if (!slides.length) return;
+  ended = false;
+  const overlay = $('slideshow-overlay');
+  overlay.classList.add('active');
+  $('slideshow-end').classList.remove('visible');
+  $('slideshow-img').style.display = '';
+  showSlide(currentIndex);
+  updateBarVisibility();
+
+  if ($('opt-fullscreen').checked) {
+    if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
+    else if (overlay.webkitRequestFullscreen) overlay.webkitRequestFullscreen();
+  }
+
+  autoInterval = parseFloat($('interval').value) || 0;
+  if (autoInterval > 0) startAutoPlay();
+}
+
+let closing = false;
+function closeSlideshow() {
+  if (closing) return;
+  closing = true;
+  $('slideshow-overlay').classList.remove('active');
+  $('slideshow-end').classList.remove('visible');
+  ended = false;
+  stopAutoPlay();
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {}).finally(() => { closing = false; });
+  } else {
+    closing = false;
+  }
+}
+
+function showEndScreen() {
+  ended = true;
+  stopAutoPlay();
+  $('slideshow-img').style.display = 'none';
+  $('slideshow-end').classList.add('visible');
+  $('slideshow-bar').classList.remove('visible');
+  stage.classList.remove('controls-visible');
+  stage.classList.add('ended');
+  clearTimeout(barTimeout);
+}
+
+function leaveEndScreen() {
+  ended = false;
+  $('slideshow-end').classList.remove('visible');
+  $('slideshow-img').style.display = '';
+  stage.classList.remove('ended');
+}
+
+function showSlide(idx) {
+  if (ended) leaveEndScreen();
+
+  if (!isLooping()) {
+    if (idx < 0) idx = 0;
+    if (idx >= slides.length) { showEndScreen(); return; }
+  } else {
+    if (idx < 0) idx = slides.length - 1;
+    if (idx >= slides.length) idx = 0;
+  }
+
+  currentIndex = idx;
+  $('slideshow-img').src = slides[idx].url;
+  $('ss-counter').textContent = `${idx + 1} / ${slides.length}`;
+}
+
+function nextSlide() { showSlide(currentIndex + 1); restartAutoIfRunning(); }
+function prevSlide() {
+  if (ended) { leaveEndScreen(); showSlide(slides.length - 1); return; }
+  showSlide(currentIndex - 1);
+  restartAutoIfRunning();
+}
+
+// Auto play
+function startAutoPlay() {
+  stopAutoPlay();
+  if (autoInterval <= 0) return;
+  if (ended) return;
+  autoStart = performance.now();
+  const ms = autoInterval * 1000;
+
+  const bar = $('slideshow-progress');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  if ($('opt-show-progress').checked) {
+    bar.offsetWidth;
+    bar.style.transition = `width ${ms}ms linear`;
+    bar.style.width = '100%';
+  }
+
+  autoTimer = setTimeout(() => {
+    nextSlide();
+  }, ms);
+}
+
+function stopAutoPlay() {
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  $('slideshow-progress').style.transition = 'none';
+  $('slideshow-progress').style.width = '0%';
+}
+
+function restartAutoIfRunning() {
+  if (autoInterval > 0 && autoTimer !== null) {
+    startAutoPlay();
+  }
+}
+
+// Bar visibility
+const stage = $('slideshow-stage');
+
+function updateBarVisibility() {
+  showBar();
+}
+
+stage.addEventListener('mousemove', () => {
+  if (!ended) updateBarVisibility();
+});
+
+function showBar() {
+  if (ended) return;
+  stage.classList.add('controls-visible');
+  $('slideshow-bar').classList.add('visible');
+  clearTimeout(barTimeout);
+  barTimeout = setTimeout(() => {
+    $('slideshow-bar').classList.remove('visible');
+    stage.classList.remove('controls-visible');
+  }, 1500);
+}
+
+// Click stage to advance (but not when clicking bar buttons)
+stage.addEventListener('click', e => {
+  if (e.target.closest('.slideshow-bar')) return;
+  if (ended) { closeSlideshow(); return; }
+  nextSlide();
+});
+
+// End screen click
+$('slideshow-end').addEventListener('click', () => {
+  closeSlideshow();
+});
+
+// Button events
+$('ss-prev').addEventListener('click', e => { e.stopPropagation(); prevSlide(); });
+$('ss-next').addEventListener('click', e => { e.stopPropagation(); nextSlide(); });
+$('ss-exit').addEventListener('click', e => { e.stopPropagation(); closeSlideshow(); });
+
+// Show/hide progress option based on auto-advance value
+function updateProgressOption() {
+  const val = parseFloat($('interval').value) || 0;
+  $('opt-progress-group').style.display = val > 0 ? '' : 'none';
+}
+$('interval').addEventListener('input', updateProgressOption);
+$('interval').addEventListener('change', updateProgressOption);
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (!$('slideshow-overlay').classList.contains('active')) return;
+
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      e.preventDefault();
+      nextSlide();
+      break;
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      e.preventDefault();
+      prevSlide();
+      break;
+    case ' ':
+      e.preventDefault();
+      if (ended) { closeSlideshow(); break; }
+      nextSlide();
+      break;
+    case 'Escape':
+      closeSlideshow();
+      break;
+    case 'f':
+    case 'F':
+      {
+        const overlay = $('slideshow-overlay');
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else overlay.requestFullscreen().catch(() => {});
+      }
+      break;
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && $('slideshow-overlay').classList.contains('active')) {
+    closeSlideshow();
+  }
+});
+</script>
+</body>
+</html>

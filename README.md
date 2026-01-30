@@ -32,4 +32,4 @@ make dev PORT=3000
 
 ## License
 
-Open source. See individual files for details.
+MIT. See [LICENSE](LICENSE) for details. Vendored third-party files (e.g. PDF.js) retain their own licenses.
