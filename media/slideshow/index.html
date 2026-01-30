@@ -69,12 +69,17 @@ header h1 { font-size: 1.5rem; font-weight: 600; }
   border: 1px solid #30363d;
   border-radius: 8px;
   padding: .75rem 1rem;
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: .6rem;
 }
 
-.controls.visible { display: flex; }
+.controls button:disabled,
+.controls select:disabled {
+  opacity: .4;
+  cursor: default;
+  pointer-events: none;
+}
 
 .controls-row {
   display: flex;
@@ -461,13 +466,6 @@ button.primary:hover { background: #2ea043; }
 
 <div class="container">
 
-  <div class="upload-area" id="upload-area">
-    <strong>Drop images, PDFs, or a folder here, or click to browse.</strong>
-    <p>Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. All files stay in your browser.</p>
-    <input type="file" id="file-input" accept="image/*,.pdf,application/pdf" multiple>
-    <input type="file" id="folder-input" accept="image/*,.pdf,application/pdf" webkitdirectory>
-  </div>
-
   <div class="controls" id="controls">
     <div class="controls-row">
       <button class="primary icon-btn" id="btn-play"><svg viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg> Start Slideshow</button>
@@ -510,6 +508,13 @@ button.primary:hover { background: #2ea043; }
         <input type="checkbox" id="opt-show-progress" checked> Progress bar
       </label>
     </div>
+  </div>
+
+  <div class="upload-area" id="upload-area">
+    <strong>Drop images, PDFs, or a folder here, or click to browse.</strong>
+    <p>Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. All files stay in your browser.</p>
+    <input type="file" id="file-input" accept="image/*,.pdf,application/pdf" multiple>
+    <input type="file" id="folder-input" accept="image/*,.pdf,application/pdf" webkitdirectory>
   </div>
 
   <div class="pdf-status" id="pdf-status">
@@ -687,11 +692,10 @@ async function addFiles(files) {
 
   if (imageFiles.length === 0 && pdfFiles.length === 0) return;
 
-  uploadArea.style.display = 'none';
-  $('controls').classList.add('visible');
   $('thumb-grid').classList.add('visible');
   $('sort-order').value = 'custom';
   renderThumbnails();
+  updateToolbarState();
 }
 
 // --- Global drag-and-drop (works anywhere on the page) ---
@@ -793,9 +797,8 @@ $('btn-clear-all').addEventListener('click', () => {
   slides = [];
   $('thumb-grid').innerHTML = '';
   $('thumb-grid').classList.remove('visible');
-  $('controls').classList.remove('visible');
   $('sort-order').value = 'custom';
-  uploadArea.style.display = '';
+  updateToolbarState();
 });
 
 // --- Thumbnails with drag-to-reorder ---
@@ -840,10 +843,9 @@ function renderThumbnails() {
       slides.splice(i, 1);
       if (slides.length === 0) {
         $('thumb-grid').classList.remove('visible');
-        $('controls').classList.remove('visible');
-        uploadArea.style.display = '';
       }
       renderThumbnails();
+      updateToolbarState();
     });
 
     // Click to preview in slideshow at that index
@@ -915,6 +917,18 @@ function esc(s) {
   d.textContent = s;
   return d.innerHTML;
 }
+
+function updateToolbarState() {
+  const hasSlides = slides.length > 0;
+  $('btn-play').disabled = !hasSlides;
+  $('btn-clear-all').disabled = !hasSlides;
+  $('sort-order').disabled = !hasSlides;
+  uploadArea.style.display = hasSlides ? 'none' : '';
+  $('image-count').textContent = `${slides.length} slide${slides.length !== 1 ? 's' : ''}`;
+}
+
+// Set initial toolbar state
+updateToolbarState();
 
 // Expose for testing
 window.addFiles = addFiles;
@@ -1124,6 +1138,9 @@ document.addEventListener('fullscreenchange', () => {
     closeSlideshow();
   }
 });
+</script>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 </script>
 </body>
 </html>

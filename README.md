@@ -10,6 +10,12 @@ A collection of frontend-only HTML5 utilities. Everything runs in the browser â€
 |------|-------------|
 | [Base64 Encode / Decode](dev/base64/) | Encode text to Base64 or decode Base64 back to text. Supports URL-safe alphabet and padding options. |
 
+### Media
+
+| Tool | Description |
+|------|-------------|
+| [Slideshow](media/slideshow/) | Drop images, PDFs, or folders to create a full-screen slideshow. Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. |
+
 ### Board Games
 
 | Tool | Description |
