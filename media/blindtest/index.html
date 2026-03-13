@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Blindtest</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+a { color: #79b8ff; }
+
+header {
+  max-width: 960px;
+  margin: 0 auto 1.5rem;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .25rem;
+}
+
+header h1 { font-size: 1.5rem; font-weight: 600; }
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Upload area */
+.upload-area {
+  background: #161b22;
+  border: 2px dashed #30363d;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.upload-area:hover, .upload-area.dragover {
+  border-color: #58a6ff;
+}
+
+.upload-area p { color: #8b949e; font-size: .9rem; margin-top: .5rem; }
+.upload-area input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Controls bar */
+.controls {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+
+.controls button:disabled,
+.controls select:disabled,
+.controls input:disabled {
+  opacity: .4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  align-items: center;
+}
+
+.controls .group {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .85rem;
+}
+
+.controls label {
+  color: #8b949e;
+  font-size: .8rem;
+  font-weight: 500;
+}
+
+.controls input[type="number"] {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .5rem;
+  font-size: .85rem;
+  width: 65px;
+}
+
+.controls input[type="number"]:focus,
+.controls select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.controls select {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .5rem;
+  font-size: .85rem;
+}
+
+.controls .spacer { flex: 1; }
+
+.image-count {
+  font-size: .8rem;
+  color: #8b949e;
+}
+
+.icon-btn {
+  padding: .4rem .5rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  vertical-align: middle;
+}
+
+/* Buttons */
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .4rem .8rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+
+button.primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+
+button.primary:hover { background: #2ea043; }
+
+/* Thumbnail grid */
+.thumb-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.thumb-grid.visible { display: grid; }
+
+.thumb-item {
+  position: relative;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  overflow: visible;
+  cursor: grab;
+  transition: opacity .15s;
+  background: #161b22;
+}
+
+.thumb-item:hover .thumb-img { border-color: #58a6ff; }
+
+.thumb-item.dragging { opacity: .3; }
+
+.thumb-img {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid #30363d;
+  transition: border-color .15s;
+}
+
+.thumb-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* Drop insertion indicators */
+.thumb-item.drop-before::before,
+.thumb-item.drop-after::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  background: #58a6ff;
+  border-radius: 2px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.thumb-item.drop-before::before { left: -6px; }
+.thumb-item.drop-after::after { right: -6px; }
+
+.thumb-item .index-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0,0,0,.7);
+  color: #e1e4e8;
+  font-size: .7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.thumb-item .remove-btn,
+.thumb-item .config-btn {
+  position: absolute;
+  top: 6px;
+  background: rgba(0,0,0,.7);
+  border: none;
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: .8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+  padding: 0;
+  z-index: 1;
+}
+
+.thumb-item .remove-btn {
+  right: 6px;
+  color: #f85149;
+}
+
+.thumb-item .config-btn {
+  bottom: 6px;
+  left: 6px;
+  top: auto;
+  right: auto;
+  color: #58a6ff;
+}
+
+.thumb-item .config-btn.has-override {
+  opacity: .9;
+  width: auto;
+  font-size: .6rem;
+  padding: 2px 5px;
+  gap: 3px;
+}
+
+.thumb-item:hover .remove-btn,
+.thumb-item:hover .config-btn { opacity: 1; }
+.thumb-item .remove-btn:hover { background: rgba(248,81,73,.3); }
+.thumb-item .config-btn:hover { background: rgba(88,166,255,.3); }
+
+/* Focus zone rectangle on thumbnail */
+.thumb-item .focus-zone {
+  position: absolute;
+  border: 1.5px solid #58a6ff;
+  background: rgba(88, 166, 255, .15);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Slide config picker modal */
+.focus-picker {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, .85);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.focus-picker.active { display: flex; }
+
+.focus-picker .picker-header {
+  color: #8b949e;
+  font-size: .9rem;
+  text-align: center;
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.focus-picker .picker-header select {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .5rem;
+  font-size: .85rem;
+}
+
+.focus-picker .picker-container {
+  position: relative;
+  max-width: 90vw;
+  max-height: 75vh;
+  user-select: none;
+}
+
+.focus-picker .picker-container.crop-mode { cursor: crosshair; }
+
+.focus-picker .picker-container img {
+  max-width: 90vw;
+  max-height: 75vh;
+  object-fit: contain;
+  display: block;
+  border-radius: 6px;
+  border: 2px solid #30363d;
+}
+
+.picker-selection {
+  position: absolute;
+  border: 2px solid #58a6ff;
+  background: rgba(88, 166, 255, .1);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .5);
+  pointer-events: none;
+  display: none;
+}
+
+.picker-selection.visible { display: block; }
+
+.picker-selection .zone-size {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #58a6ff;
+  font-size: .7rem;
+  white-space: nowrap;
+}
+
+.focus-picker .picker-buttons {
+  display: flex;
+  gap: .75rem;
+  position: relative;
+  z-index: 10;
+}
+
+/* Drop overlay */
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(15, 17, 23, .85);
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed #58a6ff;
+}
+
+.drop-overlay.visible { display: flex; }
+
+.drop-overlay span {
+  color: #58a6ff;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Fullscreen blindtest overlay */
+.blindtest-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+  flex-direction: column;
+}
+
+.blindtest-overlay.active {
+  display: flex;
+}
+
+.blindtest-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.blindtest-stage .img-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.blindtest-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform, filter;
+}
+
+/* Pixelate canvas */
+.blindtest-stage canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
+
+/* Zoom progress bar at top */
+.zoom-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: #58a6ff;
+  width: 0;
+  z-index: 10;
+  transition: none;
+}
+
+/* Paused bar */
+.paused-overlay {
+  display: none;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: linear-gradient(transparent, rgba(0,0,0,.8));
+  padding: 2rem 1.5rem 1.2rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.paused-overlay.visible {
+  display: flex;
+}
+
+.paused-overlay .paused-label {
+  color: rgba(255,255,255,.5);
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.paused-overlay button {
+  background: rgba(255,255,255,.15);
+  border-color: rgba(255,255,255,.25);
+  color: #fff;
+  padding: .5rem 1rem;
+  font-size: .9rem;
+}
+
+.paused-overlay button:hover { background: rgba(255,255,255,.25); }
+
+.paused-overlay button.primary {
+  background: #238636;
+  border-color: #2ea043;
+}
+.paused-overlay button.primary:hover { background: #2ea043; }
+
+/* Counter badge */
+.blindtest-counter {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  color: rgba(255,255,255,.4);
+  font-size: .85rem;
+  z-index: 10;
+}
+
+/* Bottom bar for blindtest */
+.blindtest-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,.8));
+  padding: 2rem 1.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.blindtest-bar.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.blindtest-bar button {
+  background: rgba(255,255,255,.15);
+  border-color: rgba(255,255,255,.2);
+  color: #fff;
+  padding: .5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.blindtest-bar button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.blindtest-bar button:hover { background: rgba(255,255,255,.25); }
+
+.blindtest-bar .bar-counter {
+  position: absolute;
+  right: 1.5rem;
+  color: rgba(255,255,255,.7);
+  font-size: .85rem;
+}
+
+/* Countdown overlay (inside blindtest-overlay) */
+.countdown-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  cursor: pointer;
+}
+
+.countdown-overlay.active { display: flex; }
+
+.countdown-number {
+  font-size: 8rem;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-height: 10rem;
+  display: flex;
+  align-items: center;
+}
+
+.countdown-label {
+  color: rgba(255,255,255,.4);
+  font-size: 1rem;
+}
+
+.countdown-pause-hint {
+  color: rgba(255,255,255,.2);
+  font-size: .8rem;
+}
+
+/* Hint text */
+.hint-text {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: rgba(255,255,255,.25);
+  font-size: .8rem;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Image Blindtest</h1>
+</header>
+
+<div class="container">
+
+  <div class="controls" id="controls">
+    <div class="controls-row">
+      <button class="primary icon-btn" id="btn-play"><svg viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg> Start Blindtest</button>
+      <button class="icon-btn" id="btn-add-more"><svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" fill="none"/></svg> Add files</button>
+      <button class="icon-btn" id="btn-add-folder"><svg viewBox="0 0 16 16"><path d="M1 3h5l1.5 1.5H15v9.5H1z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 7v4M6 9h4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg> Add folder</button>
+      <button class="icon-btn" id="btn-clear-all"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" fill="none"/></svg> Clear all</button>
+
+      <div class="group">
+        <label for="sort-order">Order</label>
+        <select id="sort-order">
+          <option value="custom">Custom</option>
+          <option value="name-asc">Name A&#8594;Z</option>
+          <option value="name-desc">Name Z&#8594;A</option>
+          <option value="random" selected>Randomize</option>
+        </select>
+      </div>
+
+      <div class="spacer"></div>
+      <span class="image-count" id="image-count"></span>
+    </div>
+
+    <div class="controls-row">
+      <div class="group">
+        <label for="duration">Duration (s)</label>
+        <input type="number" id="duration" min="5" max="120" step="5" value="30">
+      </div>
+
+      <div class="group">
+        <label for="method">Method</label>
+        <select id="method">
+          <option value="zoom-center">Zoom from center</option>
+          <option value="zoom-random" selected>Zoom from random point</option>
+          <option value="unblur">Unblur</option>
+          <option value="pixelate">Pixelate</option>
+        </select>
+      </div>
+
+      <label class="checkbox-group" style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:#8b949e;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="opt-fullscreen" checked> Fullscreen
+      </label>
+    </div>
+  </div>
+
+  <div class="upload-area" id="upload-area">
+    <strong>Drop images or a folder here, or click to browse.</strong>
+    <p>Supports JPG, PNG, GIF, WebP, SVG, BMP. All files stay in your browser.</p>
+    <input type="file" id="file-input" accept="image/*" multiple>
+    <input type="file" id="folder-input" accept="image/*" webkitdirectory>
+  </div>
+
+  <div class="thumb-grid" id="thumb-grid"></div>
+</div>
+
+<!-- Drop overlay -->
+<div class="drop-overlay" id="drop-overlay"><span>Drop to add images</span></div>
+
+<!-- Fullscreen blindtest overlay -->
+<div class="blindtest-overlay" id="blindtest-overlay">
+  <div class="countdown-overlay" id="countdown-overlay">
+    <div class="countdown-label">Blindtest starting in...</div>
+    <div class="countdown-number" id="countdown-number">5</div>
+    <div class="countdown-pause-hint">Click or press Space to pause/resume</div>
+  </div>
+
+  <div class="blindtest-stage" id="blindtest-stage">
+    <div class="zoom-progress" id="zoom-progress"></div>
+    <span class="blindtest-counter" id="bt-counter"></span>
+    <div class="img-wrapper" id="img-wrapper">
+      <img id="blindtest-img" src="" alt="">
+      <canvas id="blindtest-canvas" style="display:none"></canvas>
+    </div>
+
+    <div class="paused-overlay" id="paused-overlay">
+      <span class="paused-label">PAUSED</span>
+      <button id="btn-continue-slow">Continue slowly</button>
+      <button class="primary" id="btn-reveal">Reveal</button>
+    </div>
+
+    <div class="hint-text" id="hint-text"></div>
+
+    <div class="blindtest-bar" id="blindtest-bar">
+      <button class="icon-btn" id="bt-prev" title="Previous image"><svg viewBox="0 0 16 16"><path d="M10 2L4 8l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="icon-btn" id="bt-next" title="Next image"><svg viewBox="0 0 16 16"><path d="M6 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="icon-btn" id="bt-exit" title="Exit (Escape)"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <span class="bar-counter" id="bt-bar-counter"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Slide config picker modal -->
+<div class="focus-picker" id="focus-picker">
+  <div class="picker-header">
+    <span>Method:</span>
+    <select id="picker-method">
+      <option value="">Use default</option>
+      <option value="zoom-center">Zoom from center</option>
+      <option value="zoom-random">Zoom from random point</option>
+      <option value="zoom-zone">Zoom from zone (drag below)</option>
+      <option value="unblur">Unblur</option>
+      <option value="pixelate">Pixelate</option>
+    </select>
+    <span id="picker-hint" style="font-size:.8rem;color:#6e7681">Drag on the image to select the starting zone</span>
+  </div>
+  <div class="picker-container" id="picker-container">
+    <img id="picker-img" src="" alt="">
+    <div class="picker-selection" id="picker-selection"><span class="zone-size" id="picker-zone-size"></span></div>
+  </div>
+  <div class="picker-buttons">
+    <button id="picker-clear-zone">Clear zone</button>
+    <button class="primary" id="picker-save">Save</button>
+    <button id="picker-cancel">Cancel</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// --- State ---
+// slide: { name, url, file, lastModified, method?, zone? }
+let slides = [];
+let currentIndex = 0;
+let barTimeout = null;
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
+
+const METHOD_LABELS = {
+  'zoom-center': 'Center',
+  'zoom-random': 'Random',
+  'zoom-zone': 'Zone',
+  'unblur': 'Unblur',
+  'pixelate': 'Pixelate',
+};
+
+// --- Upload handling ---
+const uploadArea = $('upload-area');
+const fileInput = $('file-input');
+const folderInput = $('folder-input');
+
+uploadArea.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) addFiles(Array.from(fileInput.files));
+  fileInput.value = '';
+});
+folderInput.addEventListener('change', () => {
+  if (folderInput.files.length) addFiles(Array.from(folderInput.files));
+  folderInput.value = '';
+});
+
+async function handleDrop(dt) {
+  if (dt.items && dt.items.length) {
+    const entries = [];
+    for (const item of dt.items) {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) entries.push(entry);
+    }
+    if (entries.some(e => e.isDirectory)) {
+      const files = await readEntries(entries);
+      addFiles(files);
+      return;
+    }
+  }
+  addFiles(Array.from(dt.files));
+}
+
+function readEntries(entries) {
+  return new Promise(resolve => {
+    const files = [];
+    let pending = 0;
+    function traverse(entry) {
+      if (entry.isFile) {
+        pending++;
+        entry.file(f => {
+          if (IMAGE_TYPES.includes(f.type)) files.push(f);
+          if (--pending === 0) resolve(files);
+        });
+      } else if (entry.isDirectory) {
+        pending++;
+        entry.createReader().readEntries(children => {
+          for (const child of children) traverse(child);
+          if (--pending === 0) resolve(files);
+        });
+      }
+    }
+    for (const e of entries) traverse(e);
+    if (pending === 0) resolve(files);
+  });
+}
+
+function addFiles(files) {
+  const imageFiles = files.filter(f => IMAGE_TYPES.includes(f.type));
+  imageFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  for (const file of imageFiles) {
+    const url = URL.createObjectURL(file);
+    slides.push({ name: file.name, url, file, lastModified: file.lastModified });
+  }
+  if (imageFiles.length === 0) return;
+  $('thumb-grid').classList.add('visible');
+  $('sort-order').value = 'custom';
+  renderThumbnails();
+  updateToolbarState();
+}
+
+// --- Global drag-and-drop ---
+let dragCounter = 0;
+const dropOverlay = $('drop-overlay');
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+document.addEventListener('dragenter', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter++;
+  if ($('blindtest-overlay').classList.contains('active')) return;
+  if (slides.length > 0) dropOverlay.classList.add('visible');
+  else uploadArea.classList.add('dragover');
+});
+
+document.addEventListener('dragleave', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  if (--dragCounter <= 0) {
+    dragCounter = 0;
+    dropOverlay.classList.remove('visible');
+    uploadArea.classList.remove('dragover');
+  }
+});
+
+document.addEventListener('dragover', e => { if (isFileDrag(e)) e.preventDefault(); });
+
+document.addEventListener('drop', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove('visible');
+  uploadArea.classList.remove('dragover');
+  handleDrop(e.dataTransfer);
+});
+
+// --- Sorting ---
+$('sort-order').addEventListener('change', () => {
+  const order = $('sort-order').value;
+  if (order === 'custom') return;
+  if (order === 'random') {
+    for (let i = slides.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slides[i], slides[j]] = [slides[j], slides[i]];
+    }
+    $('sort-order').value = 'custom';
+  } else if (order === 'name-asc') {
+    slides.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  } else if (order === 'name-desc') {
+    slides.sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' }));
+  }
+  renderThumbnails();
+});
+
+// --- Add more / Add folder / Clear ---
+$('btn-add-more').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+  input.addEventListener('change', () => { if (input.files.length) addFiles(Array.from(input.files)); });
+  input.click();
+});
+
+$('btn-add-folder').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file'; input.webkitdirectory = true;
+  input.addEventListener('change', () => { if (input.files.length) addFiles(Array.from(input.files)); });
+  input.click();
+});
+
+$('btn-clear-all').addEventListener('click', () => {
+  for (const s of slides) URL.revokeObjectURL(s.url);
+  slides = [];
+  $('thumb-grid').innerHTML = '';
+  $('thumb-grid').classList.remove('visible');
+  $('sort-order').value = 'custom';
+  updateToolbarState();
+});
+
+// --- Thumbnails with drag-to-reorder ---
+let dragIdx = null;
+let dropTarget = null;
+
+function clearDropIndicators() {
+  document.querySelectorAll('.thumb-item.drop-before, .thumb-item.drop-after').forEach(el => {
+    el.classList.remove('drop-before', 'drop-after');
+  });
+}
+
+function getInsertIndex() {
+  if (!dropTarget) return -1;
+  let insertAt = dropTarget.side === 'before' ? dropTarget.index : dropTarget.index + 1;
+  if (dragIdx < insertAt) insertAt--;
+  return insertAt;
+}
+
+function renderThumbnails() {
+  const grid = $('thumb-grid');
+  grid.innerHTML = '';
+
+  slides.forEach((slide, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb-item';
+    div.draggable = true;
+    div.dataset.index = i;
+
+    const hasOverride = slide.method || slide.zone;
+    const effectiveMethod = slide.zone ? 'zoom-zone' : (slide.method || '');
+    const hasZone = slide.zone != null;
+
+    const gearSvg = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg>`;
+    const configLabel = hasOverride && METHOD_LABELS[effectiveMethod]
+      ? METHOD_LABELS[effectiveMethod]
+      : gearSvg;
+
+    div.innerHTML = `
+      <div class="thumb-img">
+        <img src="${slide.url}" alt="${esc(slide.name)}" loading="lazy">
+      </div>
+      ${hasZone ? `<div class="focus-zone" style="left:${slide.zone.x}%;top:${slide.zone.y}%;width:${slide.zone.w}%;height:${slide.zone.h}%"></div>` : ''}
+      <span class="index-badge">${i + 1}</span>
+      <button class="config-btn${hasOverride ? ' has-override' : ''}" title="Configure this slide">${configLabel}</button>
+      <button class="remove-btn" title="Remove">&times;</button>
+    `;
+
+    div.querySelector('.config-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      openFocusPicker(i);
+    });
+
+    div.querySelector('.remove-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      URL.revokeObjectURL(slides[i].url);
+      slides.splice(i, 1);
+      if (slides.length === 0) $('thumb-grid').classList.remove('visible');
+      renderThumbnails();
+      updateToolbarState();
+    });
+
+    // Drag events
+    div.addEventListener('dragstart', e => {
+      dragIdx = i; div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging'); clearDropIndicators(); dragIdx = null; dropTarget = null;
+    });
+    div.addEventListener('dragover', e => {
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      if (dragIdx === null) return;
+      const idx = parseInt(div.dataset.index);
+      if (idx === dragIdx) { clearDropIndicators(); dropTarget = null; return; }
+      const rect = div.getBoundingClientRect();
+      const side = (e.clientX - rect.left) < rect.width / 2 ? 'before' : 'after';
+      if (side === 'after' && idx === dragIdx - 1) { clearDropIndicators(); dropTarget = null; return; }
+      if (side === 'before' && idx === dragIdx + 1) { clearDropIndicators(); dropTarget = null; return; }
+      clearDropIndicators();
+      div.classList.add(side === 'before' ? 'drop-before' : 'drop-after');
+      dropTarget = { index: idx, side };
+    });
+    div.addEventListener('dragleave', () => { div.classList.remove('drop-before', 'drop-after'); });
+    div.addEventListener('drop', e => {
+      e.preventDefault(); clearDropIndicators();
+      if (dragIdx === null || !dropTarget) return;
+      const insertAt = getInsertIndex();
+      if (insertAt < 0 || insertAt === dragIdx) return;
+      const [moved] = slides.splice(dragIdx, 1);
+      slides.splice(insertAt, 0, moved);
+      dragIdx = null; dropTarget = null;
+      $('sort-order').value = 'custom';
+      renderThumbnails();
+    });
+
+    grid.appendChild(div);
+  });
+
+  $('image-count').textContent = `${slides.length} image${slides.length !== 1 ? 's' : ''}`;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function updateToolbarState() {
+  const hasSlides = slides.length > 0;
+  $('btn-play').disabled = !hasSlides;
+  $('btn-clear-all').disabled = !hasSlides;
+  $('sort-order').disabled = !hasSlides;
+  uploadArea.style.display = hasSlides ? 'none' : '';
+  $('image-count').textContent = `${slides.length} image${slides.length !== 1 ? 's' : ''}`;
+}
+
+updateToolbarState();
+
+// =============================================
+// BLINDTEST ENGINE
+// =============================================
+
+let animId = null;
+let animState = null;
+let isPaused = false;
+let isRevealed = false;
+
+const DEFAULT_ZOOM = 20;
+const MAX_BLUR = 50;       // px
+const SLOW_SPEED = 0.5;
+const FAST_SPEED = 10.0;
+
+function getConfig() {
+  return {
+    duration: (parseFloat($('duration').value) || 30) * 1000,
+    method: $('method').value,
+    fullscreen: $('opt-fullscreen').checked,
+  };
+}
+
+// Get effective method for a slide
+function getSlideMethod(slide) {
+  if (slide.zone) return 'zoom-zone';
+  return slide.method || getConfig().method;
+}
+
+$('btn-play').addEventListener('click', () => {
+  if ($('sort-order').value === 'random') {
+    for (let i = slides.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [slides[i], slides[j]] = [slides[j], slides[i]];
+    }
+    renderThumbnails();
+  }
+  currentIndex = 0;
+  openBlindtest();
+});
+
+// --- Countdown ---
+let countdownTimer = null;
+let countdownValue = 0;
+let countdownPaused = false;
+
+function openBlindtest() {
+  if (!slides.length) return;
+  const overlay = $('blindtest-overlay');
+  overlay.classList.add('active');
+  $('paused-overlay').classList.remove('visible');
+  isPaused = false;
+  isRevealed = false;
+
+  if (getConfig().fullscreen) {
+    if (overlay.requestFullscreen) overlay.requestFullscreen().catch(() => {});
+    else if (overlay.webkitRequestFullscreen) overlay.webkitRequestFullscreen();
+  }
+
+  startCountdown(() => { startImage(currentIndex); });
+}
+
+function startCountdown(onDone) {
+  countdownValue = 5;
+  countdownPaused = false;
+  $('countdown-number').textContent = countdownValue;
+  $('countdown-overlay').classList.add('active');
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    if (countdownPaused) return;
+    countdownValue--;
+    if (countdownValue <= 0) {
+      clearInterval(countdownTimer);
+      $('countdown-overlay').classList.remove('active');
+      onDone();
+    } else {
+      $('countdown-number').textContent = countdownValue;
+    }
+  }, 1000);
+}
+
+function toggleCountdownPause() {
+  countdownPaused = !countdownPaused;
+  $('countdown-number').textContent = countdownPaused ? '||' : countdownValue;
+}
+
+function cancelCountdown() {
+  clearInterval(countdownTimer);
+  $('countdown-overlay').classList.remove('active');
+  closeBlindtest();
+}
+
+$('countdown-overlay').addEventListener('click', () => { toggleCountdownPause(); });
+
+let closing = false;
+function closeBlindtest() {
+  if (closing) return;
+  closing = true;
+  stopAnimation();
+  $('blindtest-overlay').classList.remove('active');
+  $('paused-overlay').classList.remove('visible');
+  isPaused = false;
+  isRevealed = false;
+  // Reset image state
+  const img = $('blindtest-img');
+  img.style.transform = '';
+  img.style.filter = '';
+  img.style.display = '';
+  $('blindtest-canvas').style.display = 'none';
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {}).finally(() => { closing = false; });
+  } else {
+    closing = false;
+  }
+}
+
+function startImage(idx) {
+  if (idx < 0 || idx >= slides.length) return;
+  currentIndex = idx;
+  const img = $('blindtest-img');
+  const canvas = $('blindtest-canvas');
+
+  // Reset
+  img.style.transform = '';
+  img.style.filter = '';
+  img.style.display = '';
+  canvas.style.display = 'none';
+
+  img.src = slides[idx].url;
+  $('bt-counter').textContent = `${idx + 1} / ${slides.length}`;
+  $('bt-bar-counter').textContent = `${idx + 1} / ${slides.length}`;
+  $('paused-overlay').classList.remove('visible');
+  isPaused = false;
+  isRevealed = false;
+  updateHint('Space to pause');
+
+  img.onload = () => { startAnimation(); };
+  if (img.complete && img.naturalWidth) {
+    startAnimation();
+    img.onload = null;
+  }
+}
+
+// ---- Animation engine ----
+
+function startAnimation() {
+  stopAnimation();
+  const config = getConfig();
+  const slide = slides[currentIndex];
+  const method = getSlideMethod(slide);
+  const img = $('blindtest-img');
+  const canvas = $('blindtest-canvas');
+
+  animState = {
+    method,
+    startTime: performance.now(),
+    duration: config.duration,
+    speed: 1.0,
+    elapsed: 0,
+    lastFrameTime: null,
+  };
+
+  if (method === 'zoom-zone' || method === 'zoom-center' || method === 'zoom-random') {
+    let ox, oy, startScale;
+    if (method === 'zoom-zone' && slide.zone) {
+      ox = slide.zone.x + slide.zone.w / 2;
+      oy = slide.zone.y + slide.zone.h / 2;
+      startScale = Math.max(2, Math.round(100 / Math.min(slide.zone.w, slide.zone.h)));
+    } else if (method === 'zoom-random') {
+      ox = 20 + Math.random() * 60;
+      oy = 20 + Math.random() * 60;
+      startScale = DEFAULT_ZOOM;
+    } else {
+      ox = 50; oy = 50;
+      startScale = DEFAULT_ZOOM;
+    }
+    img.style.transformOrigin = `${ox}% ${oy}%`;
+    img.style.transform = `scale(${startScale})`;
+    img.style.display = '';
+    canvas.style.display = 'none';
+    animState.startScale = startScale;
+  } else if (method === 'unblur') {
+    img.style.filter = `blur(${MAX_BLUR}px)`;
+    img.style.display = '';
+    canvas.style.display = 'none';
+  } else if (method === 'pixelate') {
+    // Use canvas for pixelation
+    img.style.display = 'none';
+    canvas.style.display = '';
+    // Store source image ref
+    animState.sourceImg = img;
+    // Size canvas to match the wrapper
+    const wrapper = $('img-wrapper');
+    const ww = wrapper.clientWidth;
+    const wh = wrapper.clientHeight;
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    const scale = Math.min(ww / iw, wh / ih);
+    canvas.width = Math.round(iw * scale);
+    canvas.height = Math.round(ih * scale);
+    canvas.style.width = canvas.width + 'px';
+    canvas.style.height = canvas.height + 'px';
+  }
+
+  $('zoom-progress').style.width = '0%';
+  animId = requestAnimationFrame(animate);
+}
+
+function animate(now) {
+  if (!animState) return;
+  if (isPaused) { animId = requestAnimationFrame(animate); return; }
+
+  const dt = now - (animState.lastFrameTime || animState.startTime);
+  animState.lastFrameTime = now;
+  animState.elapsed += dt * animState.speed;
+
+  const progress = Math.min(animState.elapsed / animState.duration, 1);
+  $('zoom-progress').style.width = `${progress * 100}%`;
+
+  const img = $('blindtest-img');
+  const canvas = $('blindtest-canvas');
+  const method = animState.method;
+
+  if (method === 'zoom-zone' || method === 'zoom-center' || method === 'zoom-random') {
+    const logStart = Math.log(animState.startScale);
+    const scale = Math.exp(logStart * (1 - progress));
+    img.style.transform = `scale(${scale})`;
+  } else if (method === 'unblur') {
+    const blur = MAX_BLUR * (1 - progress);
+    img.style.filter = blur < 0.5 ? 'none' : `blur(${blur}px)`;
+  } else if (method === 'pixelate') {
+    // progress 0 = very pixelated, 1 = full res
+    // Mild convex curve: beginning progresses visibly, recognition delayed to ~80%+
+    const curved = Math.pow(progress, 2);
+    const minRes = 4;
+    const maxRes = Math.max(canvas.width, canvas.height);
+    const logMin = Math.log(minRes);
+    const logMax = Math.log(maxRes);
+    const res = Math.exp(logMin + (logMax - logMin) * curved);
+    const ratio = res / maxRes;
+
+    const ctx = canvas.getContext('2d');
+    const sw = Math.max(1, Math.round(canvas.width * ratio));
+    const sh = Math.max(1, Math.round(canvas.height * ratio));
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw small
+    ctx.drawImage(animState.sourceImg, 0, 0, sw, sh);
+    // Scale up pixelated
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(canvas, 0, 0, sw, sh, 0, 0, canvas.width, canvas.height);
+  }
+
+  if (progress >= 1) {
+    isRevealed = true;
+    if (method.startsWith('zoom')) {
+      img.style.transform = 'scale(1)';
+    } else if (method === 'unblur') {
+      img.style.filter = 'none';
+    } else if (method === 'pixelate') {
+      // Show the real image
+      img.style.display = '';
+      canvas.style.display = 'none';
+    }
+    $('zoom-progress').style.width = '100%';
+    updateHint('Arrow keys for next/prev');
+    return;
+  }
+
+  animId = requestAnimationFrame(animate);
+}
+
+function stopAnimation() {
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  animState = null;
+}
+
+function pauseAnim() {
+  if (!animState || isPaused || isRevealed) return;
+  isPaused = true;
+  animState.lastFrameTime = null;
+  $('paused-overlay').classList.add('visible');
+  updateHint('');
+}
+
+function resumeAnim(speed) {
+  if (!animState || !isPaused) return;
+  isPaused = false;
+  animState.speed = speed;
+  animState.lastFrameTime = performance.now();
+  $('paused-overlay').classList.remove('visible');
+  updateHint(speed > 2 ? '' : 'Space to pause');
+}
+
+function revealImage() {
+  if (!animState) return;
+  isPaused = false;
+  animState.speed = FAST_SPEED;
+  animState.lastFrameTime = performance.now();
+  $('paused-overlay').classList.remove('visible');
+  updateHint('');
+}
+
+function updateHint(text) { $('hint-text').textContent = text; }
+
+function goNext() { if (currentIndex < slides.length - 1) startImage(currentIndex + 1); }
+function goPrev() { if (currentIndex > 0) startImage(currentIndex - 1); }
+
+// --- Button events ---
+$('btn-continue-slow').addEventListener('click', e => { e.stopPropagation(); resumeAnim(SLOW_SPEED); });
+$('btn-reveal').addEventListener('click', e => { e.stopPropagation(); revealImage(); });
+$('bt-prev').addEventListener('click', e => { e.stopPropagation(); goPrev(); });
+$('bt-next').addEventListener('click', e => { e.stopPropagation(); goNext(); });
+$('bt-exit').addEventListener('click', e => { e.stopPropagation(); closeBlindtest(); });
+
+// --- Slide config picker (method + zone) ---
+let pickerSlideIdx = null;
+let pickerZone = null;
+let pickerMethod = '';
+let isCropDragging = false;
+let cropStart = null;
+
+function openFocusPicker(idx) {
+  pickerSlideIdx = idx;
+  const slide = slides[idx];
+  $('picker-img').src = slide.url;
+
+  // Set method dropdown
+  pickerMethod = slide.zone ? 'zoom-zone' : (slide.method || 'zoom-zone');
+  $('picker-method').value = pickerMethod;
+
+  // Set zone
+  const sel = $('picker-selection');
+  if (slide.zone) {
+    pickerZone = { ...slide.zone };
+    sel.classList.add('visible');
+    updateSelectionRect();
+  } else {
+    pickerZone = null;
+    sel.classList.remove('visible');
+  }
+
+  updatePickerUI();
+  $('focus-picker').classList.add('active');
+}
+
+function updatePickerUI() {
+  const isZoom = pickerMethod === 'zoom-zone';
+  $('picker-container').classList.toggle('crop-mode', isZoom);
+  $('picker-hint').style.display = isZoom ? '' : 'none';
+  $('picker-clear-zone').style.display = isZoom ? '' : 'none';
+  if (!isZoom) {
+    pickerZone = null;
+    $('picker-selection').classList.remove('visible');
+  }
+}
+
+$('picker-method').addEventListener('change', () => {
+  pickerMethod = $('picker-method').value;
+  updatePickerUI();
+});
+
+function imgCoords(e) {
+  const img = $('picker-img');
+  const rect = img.getBoundingClientRect();
+  return {
+    px: Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)),
+    py: Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100)),
+  };
+}
+
+function updateSelectionRect() {
+  if (!pickerZone) return;
+  const sel = $('picker-selection');
+  sel.style.left = pickerZone.x + '%';
+  sel.style.top = pickerZone.y + '%';
+  sel.style.width = pickerZone.w + '%';
+  sel.style.height = pickerZone.h + '%';
+  $('picker-zone-size').textContent = `${Math.round(pickerZone.w)}% x ${Math.round(pickerZone.h)}%`;
+}
+
+$('picker-container').addEventListener('mousedown', e => {
+  if (e.button !== 0 || pickerMethod !== 'zoom-zone') return;
+  e.preventDefault();
+  isCropDragging = true;
+  cropStart = imgCoords(e);
+  pickerZone = { x: cropStart.px, y: cropStart.py, w: 0, h: 0 };
+  $('picker-selection').classList.add('visible');
+  updateSelectionRect();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isCropDragging || !cropStart) return;
+  const cur = imgCoords(e);
+  pickerZone = {
+    x: Math.min(cropStart.px, cur.px),
+    y: Math.min(cropStart.py, cur.py),
+    w: Math.abs(cur.px - cropStart.px),
+    h: Math.abs(cur.py - cropStart.py),
+  };
+  updateSelectionRect();
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isCropDragging) return;
+  isCropDragging = false;
+  cropStart = null;
+  if (pickerZone && (pickerZone.w < 2 || pickerZone.h < 2)) {
+    pickerZone = null;
+    $('picker-selection').classList.remove('visible');
+  }
+});
+
+$('picker-save').addEventListener('click', () => {
+  if (pickerSlideIdx != null) {
+    const slide = slides[pickerSlideIdx];
+    if (pickerMethod === 'zoom-zone' && pickerZone && pickerZone.w >= 2 && pickerZone.h >= 2) {
+      slide.zone = { ...pickerZone };
+      delete slide.method;
+    } else if (pickerMethod) {
+      slide.method = pickerMethod;
+      delete slide.zone;
+    } else {
+      delete slide.method;
+      delete slide.zone;
+    }
+    renderThumbnails();
+  }
+  $('focus-picker').classList.remove('active');
+  pickerSlideIdx = null;
+});
+
+$('picker-clear-zone').addEventListener('click', () => {
+  pickerZone = null;
+  $('picker-selection').classList.remove('visible');
+});
+
+$('picker-cancel').addEventListener('click', () => {
+  $('focus-picker').classList.remove('active');
+  pickerSlideIdx = null;
+});
+
+// --- Bar visibility ---
+const stage = $('blindtest-stage');
+
+stage.addEventListener('mousemove', () => { if (!isPaused) showBar(); });
+
+function showBar() {
+  stage.classList.add('controls-visible');
+  $('blindtest-bar').classList.add('visible');
+  clearTimeout(barTimeout);
+  barTimeout = setTimeout(() => {
+    $('blindtest-bar').classList.remove('visible');
+    stage.classList.remove('controls-visible');
+  }, 1500);
+}
+
+// --- Keyboard ---
+document.addEventListener('keydown', e => {
+  if ($('focus-picker').classList.contains('active')) {
+    if (e.key === 'Escape') { $('focus-picker').classList.remove('active'); pickerSlideIdx = null; }
+    return;
+  }
+  if ($('countdown-overlay').classList.contains('active')) {
+    if (e.key === ' ') { e.preventDefault(); toggleCountdownPause(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelCountdown(); }
+    return;
+  }
+  if (!$('blindtest-overlay').classList.contains('active')) return;
+
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      if (isRevealed) goNext();
+      else if (isPaused) resumeAnim(SLOW_SPEED);
+      else pauseAnim();
+      break;
+    case 'ArrowRight': case 'ArrowDown':
+      e.preventDefault(); goNext(); break;
+    case 'ArrowLeft': case 'ArrowUp':
+      e.preventDefault(); goPrev(); break;
+    case 'Enter':
+      e.preventDefault();
+      if (isPaused) revealImage();
+      break;
+    case 'Escape':
+      closeBlindtest(); break;
+    case 'f': case 'F':
+      {
+        const overlay = $('blindtest-overlay');
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else overlay.requestFullscreen().catch(() => {});
+      }
+      break;
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && $('blindtest-overlay').classList.contains('active')) {
+    closeBlindtest();
+  }
+});
+</script>
+</body>
+</html>
