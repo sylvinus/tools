@@ -1,0 +1,2711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overlay</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+a { color: #79b8ff; }
+button { font: inherit; }
+
+header {
+  padding: 1rem 1.5rem .75rem;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .15rem;
+}
+
+header h1 { font-size: 1.25rem; font-weight: 600; }
+
+/* Top toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar .spacer { flex: 1; }
+.toolbar .sep { width: 1px; height: 1.2rem; background: #30363d; }
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+button.primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+}
+button.primary:hover { background: #2ea043; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* Workspace: 3-column layout */
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+aside {
+  background: #161b22;
+  border-right: 1px solid #21262d;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+aside.right {
+  border-right: none;
+  border-left: 1px solid #21262d;
+  width: 280px;
+}
+
+.panel-title {
+  padding: .65rem .85rem;
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #8b949e;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+/* Layers list */
+.layers-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .35rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .5rem;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px solid #21262d;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s;
+}
+
+.layer-item:hover { background: #1c2230; }
+
+.layer-item.selected {
+  border-color: #58a6ff;
+  background: #1c2230;
+}
+
+.layer-item.dragging { opacity: .4; }
+
+.layer-item .layer-thumb {
+  width: 36px;
+  height: 36px;
+  background: repeating-conic-gradient(#21262d 0% 25%, #2a2f37 0% 50%) 50% / 8px 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layer-item .layer-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+.layer-item .layer-name {
+  flex: 1;
+  font-size: .8rem;
+  color: #c9d1d9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-item .layer-vis,
+.layer-item .layer-del {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: .8rem;
+  line-height: 1;
+}
+
+.layer-item .layer-vis svg { width: 14px; height: 14px; fill: currentColor; }
+.layer-item .layer-vis:hover,
+.layer-item .layer-del:hover { background: #30363d; color: #c9d1d9; }
+.layer-item.hidden .layer-thumb { opacity: .3; }
+.layer-item.hidden .layer-name { color: #6e7681; text-decoration: line-through; }
+
+.layer-item.drop-before { box-shadow: 0 -2px 0 #58a6ff; }
+.layer-item.drop-after { box-shadow: 0 2px 0 #58a6ff; }
+
+/* Canvas area */
+.canvas-area {
+  flex: 1;
+  background: #1c1f26;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+#stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  cursor: default;
+}
+
+#stage.dragging { cursor: grabbing; }
+#stage.panning { cursor: grab; }
+#stage.rotating { cursor: alias; }
+
+.empty-canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #484f58;
+  font-size: .9rem;
+}
+
+.empty-canvas.hidden { display: none; }
+
+/* Export modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal-overlay.visible { display: flex; }
+
+.modal {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem 1rem;
+  min-width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+}
+
+.modal h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: .85rem;
+}
+
+.modal .row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .55rem;
+}
+
+.modal .row label {
+  font-size: .8rem;
+  color: #8b949e;
+  width: 80px;
+}
+
+.modal .row input[type="range"] { flex: 1; accent-color: #58a6ff; }
+.modal .row input[type="number"],
+.modal .row select {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  padding: .3rem .5rem;
+  font-size: .85rem;
+}
+.modal .row select { flex: 1; }
+.modal .row .val { font-size: .8rem; color: #8b949e; min-width: 32px; text-align: right; }
+
+.modal .actions {
+  display: flex;
+  gap: .5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Background pseudo-layer at the bottom of the layers list */
+.bg-layer-item {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .5rem;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px dashed #30363d;
+  user-select: none;
+  margin: .35rem .35rem;
+  flex-shrink: 0;
+}
+
+.bg-layer-item .layer-name {
+  font-size: .8rem;
+  color: #8b949e;
+  flex: 1;
+}
+
+.bg-layer-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.canvas-bg-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1.5px solid #30363d;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.canvas-bg-btn:hover { border-color: #58a6ff; }
+.canvas-bg-btn.active { border-color: #58a6ff; box-shadow: 0 0 0 1px #58a6ff; }
+.canvas-bg-btn.checker {
+  background-image: repeating-conic-gradient(#5b6066 0% 25%, #8b9098 0% 50%);
+  background-size: 8px 8px;
+}
+.canvas-bg-btn.white { background: #ffffff; }
+.canvas-bg-btn.black { background: #000000; }
+.canvas-bg-btn.custom { background: #d29922; }
+.canvas-bg-btn.custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+/* Drop overlay */
+.drop-overlay {
+  position: absolute;
+  inset: .5rem;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 17, 23, .85);
+  border: 2px dashed #58a6ff;
+  border-radius: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.drop-overlay.visible { display: flex; }
+
+.drop-overlay span {
+  color: #58a6ff;
+  font-weight: 600;
+}
+
+/* PDF status banner */
+.status-banner {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .65rem 1rem;
+  display: none;
+  align-items: center;
+  gap: .75rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  z-index: 20;
+  min-width: 260px;
+}
+
+.status-banner.visible { display: flex; }
+
+.status-banner .progress {
+  flex: 1;
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.status-banner .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  width: 0;
+  transition: width .15s;
+}
+
+.status-banner button.stop {
+  background: #4a1f1f;
+  color: #f0a0a0;
+  border: 1px solid #6a2f2f;
+  border-radius: 5px;
+  padding: .25rem .55rem;
+  font-size: .75rem;
+  cursor: pointer;
+}
+
+.status-banner button.stop:hover { background: #6a2f2f; color: #fff; }
+
+/* Properties panel */
+.props {
+  flex: 1;
+  overflow-y: auto;
+  padding: .65rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+}
+
+.props .empty {
+  color: #6e7681;
+  font-size: .85rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.props-section h4 {
+  font-size: .7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #8b949e;
+  margin-bottom: .4rem;
+}
+
+.props .row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+
+.props .row label {
+  font-size: .8rem;
+  color: #8b949e;
+  width: 56px;
+}
+
+.props .row input[type="number"] {
+  background: #0d1117;
+  color: #e1e4e8;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  padding: .25rem .4rem;
+  font-size: .8rem;
+  width: 70px;
+}
+
+.props .row input[type="range"] {
+  flex: 1;
+  accent-color: #58a6ff;
+}
+
+.props .row .val {
+  font-size: .75rem;
+  color: #8b949e;
+  width: 36px;
+  text-align: right;
+}
+
+.props .row .unit {
+  font-size: .8rem;
+  color: #8b949e;
+  margin-left: -.2rem;
+}
+
+.props input:focus { outline: none; border-color: #58a6ff; }
+
+.color-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+  gap: .3rem;
+  margin-top: .35rem;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.color-chip {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #30363d;
+  transition: transform .1s, border-color .15s;
+  background-image: repeating-conic-gradient(#21262d 0% 25%, #2a2f37 0% 50%);
+  background-size: 8px 8px;
+}
+
+.color-chip:hover { transform: scale(1.08); border-color: #58a6ff; }
+
+.color-chip .swatch {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  transition: opacity .15s;
+}
+
+/* Hidden: dimmed swatch + diagonal strike */
+.color-chip.hidden .swatch { opacity: .25; }
+.color-chip.hidden {
+  border-color: #58a6ff;
+  border-style: dashed;
+}
+.color-chip.hidden::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -10%;
+  width: 120%;
+  height: 2px;
+  background: #f85149;
+  transform: rotate(-22deg);
+  box-shadow: 0 0 3px rgba(0,0,0,.9);
+  pointer-events: none;
+}
+
+.color-chip.partial {
+  border-color: #d29922;
+  border-style: dashed;
+}
+.color-chip.partial .swatch { opacity: .6; }
+
+/* Special chips for pure white / pure black — always shown when present.
+ * Gives them a small notch so users notice they're not just "another gray". */
+.color-chip.special {
+  border-color: #58a6ff;
+  box-shadow: inset 0 0 0 1px #161b22;
+}
+
+.compact-help {
+  font-size: .7rem;
+  color: #6e7681;
+  margin-top: .3rem;
+}
+
+/* Upload area when empty */
+.upload-prompt {
+  margin: 1.5rem;
+  padding: 2rem;
+  background: rgba(22, 27, 34, .6);
+  border: 2px dashed #30363d;
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  pointer-events: auto;
+}
+
+.upload-prompt:hover { border-color: #58a6ff; background: rgba(28, 34, 48, .6); }
+.upload-prompt strong { display: block; margin-bottom: .35rem; color: #c9d1d9; }
+.upload-prompt p { color: #8b949e; font-size: .85rem; }
+.upload-prompt input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+@media (max-width: 800px) {
+  aside { width: 180px; }
+  aside.right { width: 220px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Overlay</h1>
+</header>
+
+<div class="toolbar">
+  <button class="icon-btn primary" id="btn-add">
+    <svg viewBox="0 0 16 16"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    Add files
+  </button>
+  <button class="icon-btn" id="btn-add-folder">
+    <svg viewBox="0 0 16 16"><path d="M1 3h5l1.5 1.5H15v9.5H1z" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+    Folder
+  </button>
+  <div class="sep"></div>
+  <button class="icon-btn" id="btn-auto-overlay" disabled title="Aligns the selected layer onto the layer below it">
+    <svg viewBox="0 0 16 16"><circle cx="6" cy="6" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    Auto-overlay
+  </button>
+  <button class="icon-btn" id="btn-reset-view">
+    <svg viewBox="0 0 16 16"><path d="M2 8a6 6 0 1 1 2 4.5M2 13v-3h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Reset view
+  </button>
+  <button class="icon-btn" id="btn-fit-all">
+    <svg viewBox="0 0 16 16"><path d="M3 6V3h3M13 6V3h-3M3 10v3h3M13 10v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    Fit all
+  </button>
+  <div class="sep"></div>
+  <button class="icon-btn" id="btn-export">
+    <svg viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Export
+  </button>
+  <div class="spacer"></div>
+  <span id="zoom-label" style="font-size:.8rem;color:#8b949e;">100%</span>
+</div>
+
+<div class="workspace">
+
+  <aside class="left">
+    <div class="panel-title">Layers</div>
+    <div class="layers-list" id="layers-list"></div>
+    <div class="bg-layer-item">
+      <span class="layer-name">Background</span>
+      <div class="bg-layer-controls">
+        <button class="canvas-bg-btn checker active" data-bg="checker" title="Checkerboard"></button>
+        <button class="canvas-bg-btn white" data-bg="white" title="White"></button>
+        <button class="canvas-bg-btn black" data-bg="black" title="Black"></button>
+        <button class="canvas-bg-btn custom" data-bg="custom" title="Custom color">
+          <input type="color" id="bg-custom-input" value="#d29922">
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="canvas-area" id="canvas-area">
+    <canvas id="stage"></canvas>
+    <div class="empty-canvas" id="empty-canvas">
+      <div class="upload-prompt" id="upload-prompt">
+        <strong>Drop images, PDFs, or click here</strong>
+        <p>JPG, PNG, GIF, WebP, SVG, BMP, PDF — all local, nothing uploaded.</p>
+        <input type="file" id="file-input" accept="image/*,.pdf,application/pdf" multiple>
+      </div>
+    </div>
+    <div class="drop-overlay" id="drop-overlay"><span>Drop to add layers</span></div>
+    <div class="status-banner" id="status-banner">
+      <span id="status-text">Working...</span>
+      <div class="progress"><div class="progress-fill" id="status-progress"></div></div>
+      <button class="stop" id="status-stop" style="display:none">Stop</button>
+    </div>
+  </div>
+
+  <aside class="right">
+    <div class="panel-title">Layer properties</div>
+    <div class="props" id="props">
+      <div class="empty">Select a layer to edit its properties.</div>
+    </div>
+  </aside>
+
+</div>
+
+<input type="file" id="folder-input" accept="image/*,.pdf,application/pdf" webkitdirectory style="display:none">
+
+<div class="modal-overlay" id="export-modal">
+  <div class="modal">
+    <h3>Export</h3>
+    <div class="row">
+      <label>Format</label>
+      <select id="export-format">
+        <option value="image/png">PNG (lossless)</option>
+        <option value="image/jpeg">JPEG</option>
+      </select>
+    </div>
+    <div class="row" id="export-quality-row" style="display:none">
+      <label>Quality</label>
+      <input type="range" id="export-quality" min="20" max="100" step="1" value="90">
+      <span class="val" id="export-quality-val">90</span>
+    </div>
+    <div class="row">
+      <label>Crop</label>
+      <select id="export-crop">
+        <option value="content">Content (fit to all layers)</option>
+        <option value="view">Current view (what's on screen)</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button id="export-cancel">Cancel</button>
+      <button class="primary" id="export-confirm">Export</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const IMAGE_TYPES = ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/bmp'];
+
+// ===== State =====
+const state = {
+  layers: [],
+  selectedId: null,
+  view: { x: 0, y: 0, scale: 1 },
+  nextId: 1,
+  // Canvas background: 'checker' (default), 'white', 'black', or 'custom'.
+  // backgroundCustom holds the picker color when mode='custom'.
+  backgroundMode: 'checker',
+  backgroundCustom: '#d29922',
+  // Target number of color-group chips shown for the selected layer.
+  // Global rather than per-layer so the same slider value applies as the
+  // user switches between layers.
+  colorGroupCount: 12,
+};
+
+// Cached pattern for the checkerboard background. Built lazily on first
+// render and re-used afterwards. The pattern tile is small (16×16) so the
+// memory cost is negligible.
+let _checkerPattern = null;
+function getCheckerPattern(targetCtx) {
+  if (_checkerPattern) return _checkerPattern;
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = 16;
+  const tctx = tile.getContext('2d');
+  tctx.fillStyle = '#5b6066';
+  tctx.fillRect(0, 0, 16, 16);
+  tctx.fillStyle = '#8b9098';
+  tctx.fillRect(0, 0, 8, 8);
+  tctx.fillRect(8, 8, 8, 8);
+  _checkerPattern = targetCtx.createPattern(tile, 'repeat');
+  return _checkerPattern;
+}
+
+// Resolve the current backgroundMode to a canvas fill style — either a
+// solid color string or a CanvasPattern. Used by both the live render and
+// the PNG export so the exported file matches what's on screen.
+function getBackgroundFill(targetCtx) {
+  switch (state.backgroundMode) {
+    case 'white': return '#ffffff';
+    case 'black': return '#000000';
+    case 'custom': return state.backgroundCustom;
+    case 'checker':
+    default: return getCheckerPattern(targetCtx);
+  }
+}
+
+// ===== PDF.js =====
+let pdfjsLib = null;
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+// ===== Layer model =====
+function newLayer(name, sourceImageData) {
+  return {
+    id: state.nextId++,
+    name,
+    naturalW: sourceImageData.width,
+    naturalH: sourceImageData.height,
+    sourceImageData,
+    processedBitmap: null,
+    thumbDataURL: '',
+    cx: 0, cy: 0,
+    rotation: 0,
+    scale: 1,
+    opacity: 1,
+    visible: true,
+    // colors: [{ r, g, b, size, hidden }] — fine-grained "atoms" produced
+    // by detection. They never re-group; they're the source of truth for
+    // hidden state. Each pixel of the source image is assigned to its
+    // nearest atom in RGB space (Voronoi), and a pixel is cut iff its
+    // nearest atom is `hidden`. This guarantees that hiding e.g. "pink"
+    // only removes pixels that are closer to pink than to any other
+    // remaining atom — never accidentally also hides white.
+    colors: [],
+    blendMode: 'source-over',
+  };
+}
+
+// Blend modes the user actually needs for plan overlay work. Each label is
+// a plain description of what it does, not the canvas API name.
+//   Normal      — cover layers below
+//   Difference  — show only what's different between this and the layers below
+//   Multiply    — combine: any black stays black, paper-on-paper effect
+//   Darken      — keep the darker of each pixel pair
+//   Lighten     — keep the lighter of each pixel pair
+const BLEND_MODES = [
+  ['source-over', 'Normal'],
+  ['difference', 'Difference'],
+  ['multiply', 'Multiply'],
+  ['darken', 'Darken'],
+  ['lighten', 'Lighten'],
+];
+
+// ===== File loading =====
+async function fileToImageData(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    return ctx.getImageData(0, 0, c.width, c.height);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function pdfFileToImageDatas(file, onProgress) {
+  const lib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
+  const results = [];
+  const baseName = file.name.replace(/\.pdf$/i, '');
+  for (let i = 1; i <= pdf.numPages; i++) {
+    onProgress(`Rendering ${file.name} — page ${i} / ${pdf.numPages}`, i / pdf.numPages);
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const c = document.createElement('canvas');
+    c.width = viewport.width;
+    c.height = viewport.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const imageData = ctx.getImageData(0, 0, c.width, c.height);
+    const pageLabel = pdf.numPages > 1 ? ` p${String(i).padStart(String(pdf.numPages).length, '0')}` : '';
+    results.push({ name: baseName + pageLabel, imageData });
+  }
+  return results;
+}
+
+function showStatus(text, progress) {
+  const b = $('status-banner');
+  b.classList.add('visible');
+  $('status-text').textContent = text;
+  $('status-progress').style.width = `${(progress || 0) * 100}%`;
+}
+
+function hideStatus() {
+  $('status-banner').classList.remove('visible');
+  $('status-progress').style.width = '0%';
+}
+
+async function addFiles(files) {
+  const fileList = Array.from(files);
+  const imageFiles = fileList.filter(f => IMAGE_TYPES.includes(f.type) || /\.(svg|bmp|gif|webp|png|jpe?g)$/i.test(f.name));
+  const pdfFiles = fileList.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  imageFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  pdfFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  const newLayers = [];
+
+  for (let i = 0; i < imageFiles.length; i++) {
+    const f = imageFiles[i];
+    showStatus(`Loading ${f.name} (${i + 1}/${imageFiles.length})`, i / imageFiles.length);
+    try {
+      const imageData = await fileToImageData(f);
+      const l = newLayer(f.name, imageData);
+      newLayers.push(l);
+    } catch (e) { console.warn('Failed to load', f.name, e); }
+  }
+
+  for (const f of pdfFiles) {
+    try {
+      const pages = await pdfFileToImageDatas(f, showStatus);
+      for (const p of pages) newLayers.push(newLayer(p.name, p.imageData));
+    } catch (e) { console.warn('Failed to load PDF', f.name, e); }
+  }
+
+  hideStatus();
+  if (newLayers.length === 0) return;
+
+  // Initialize layer state (color atoms, processed bitmap, thumbnail)
+  showStatus('Processing layers...', 0);
+  for (let i = 0; i < newLayers.length; i++) {
+    const l = newLayers[i];
+    showStatus(`Processing ${l.name} (${i + 1}/${newLayers.length})`, i / newLayers.length);
+    l.colors = detectDominantColors(l.sourceImageData);
+    await processLayer(l);
+    l.thumbDataURL = makeThumb(l);
+    state.layers.push(l);
+  }
+  hideStatus();
+
+  // Fit on first add
+  const wasEmpty = state.layers.length === newLayers.length;
+  if (wasEmpty) {
+    state.selectedId = newLayers[0].id;
+    centerLayersInitialPositions();
+    fitAll();
+  } else {
+    // place new layers near current view center, slightly offset so they don't stack exactly
+    const center = screenToWorld(canvas.width / 2 / dpr(), canvas.height / 2 / dpr());
+    newLayers.forEach((l, idx) => {
+      l.cx = center.x + idx * 20;
+      l.cy = center.y + idx * 20;
+    });
+    state.selectedId = newLayers[newLayers.length - 1].id;
+  }
+
+  renderLayersList();
+  renderProps();
+  updateToolbar();
+  render();
+}
+
+function centerLayersInitialPositions() {
+  // Stack layers at the origin so they overlay each other by default
+  for (const l of state.layers) { l.cx = 0; l.cy = 0; }
+}
+
+function makeThumb(l) {
+  const max = 60;
+  const ratio = Math.min(max / l.naturalW, max / l.naturalH);
+  const tw = Math.max(1, Math.round(l.naturalW * ratio));
+  const th = Math.max(1, Math.round(l.naturalH * ratio));
+  const c = document.createElement('canvas');
+  c.width = tw; c.height = th;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  if (l.processedBitmap) ctx.drawImage(l.processedBitmap, 0, 0, tw, th);
+  return c.toDataURL('image/png');
+}
+
+// Detect dominant color clusters (called "atoms" elsewhere) via coarse-grid
+// histogram quantization, then merge bins that are within ~22 RGB units of
+// each other. Works well for PDF/architectural content where colors come
+// from a small near-discrete palette (ink colors, annotation hues, etc).
+// Returns up to 200 entries sorted by descending size, keeping any cluster
+// that covers at least ~0.0015% of sampled pixels.
+function detectDominantColors(imageData) {
+  const w = imageData.width, h = imageData.height;
+  const data = imageData.data;
+  // Sample densely enough that a small stamp/mark only a few dozen pixels
+  // across is consistently hit. Step floor is 1 (every pixel) for tiny inputs.
+  const target = 1200;
+  const step = Math.max(1, Math.floor(Math.min(w, h) / target));
+  const QUANT = 16;
+
+  const buckets = new Map();
+  let totalSamples = 0;
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const i = (y * w + x) * 4;
+      const a = data[i + 3];
+      if (a < 128) continue;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const key = (Math.floor(r / QUANT) << 16) | (Math.floor(g / QUANT) << 8) | Math.floor(b / QUANT);
+      const e = buckets.get(key);
+      if (e) { e.r += r; e.g += g; e.b += b; e.n++; }
+      else buckets.set(key, { r, g, b, n: 1 });
+      totalSamples++;
+    }
+  }
+  if (totalSamples === 0) return [];
+
+  let clusters = [];
+  for (const e of buckets.values()) {
+    clusters.push({
+      r: Math.round(e.r / e.n),
+      g: Math.round(e.g / e.n),
+      b: Math.round(e.b / e.n),
+      size: e.n,
+    });
+  }
+  clusters.sort((a, b) => b.size - a.size);
+
+  // Merge near-identical bins (anti-aliasing fringe), but keep the radius
+  // small enough that genuinely distinct ink colors stay separate.
+  const merged = [];
+  const mergeDistSq = 22 * 22;
+  for (const c of clusters) {
+    let near = null, bestD = Infinity;
+    for (const m of merged) {
+      const dr = m.r - c.r, dg = m.g - c.g, db = m.b - c.b;
+      const d = dr*dr + dg*dg + db*db;
+      if (d < mergeDistSq && d < bestD) { near = m; bestD = d; }
+    }
+    if (near) {
+      const total = near.size + c.size;
+      near.r = Math.round((near.r * near.size + c.r * c.size) / total);
+      near.g = Math.round((near.g * near.size + c.g * c.size) / total);
+      near.b = Math.round((near.b * near.size + c.b * c.size) / total);
+      near.size = total;
+    } else {
+      merged.push({ ...c });
+    }
+  }
+  merged.sort((a, b) => b.size - a.size);
+
+  // Very low floor — even a few-pixel stamp can be the relevant cue
+  // (architectural marks, code stamps, redline arrows). We just need
+  // enough hits that the cluster isn't pure noise. The user scrolls the
+  // panel to find what they want.
+  const minSize = Math.max(4, Math.floor(totalSamples * 0.000015));
+  return merged.filter(c => c.size >= minSize).slice(0, 200)
+    .map(c => ({ r: c.r, g: c.g, b: c.b, size: c.size, hidden: false }));
+}
+
+// Saturation-aware Voronoi lookup table: a 32×32×32 RGB grid where each
+// bin stores the index of the nearest detected color atom. Pixels are
+// classified in O(1) by quantizing their RGB and reading the atom index.
+//
+// Each atom and each bin is also tagged "colored" (saturation > 5) or
+// "grayscale"; the LUT prefers a same-category atom, only falling back
+// to the other category when no same-category atom exists. This stops
+// faintly-tinted anti-aliased edge pixels (e.g. (255, 247, 247) at the
+// fringe of a pink character) from snapping to the white atom: they go
+// to pink and get cut when pink is hidden, eliminating colored halos
+// around hidden fonts/lines.
+function buildVoronoiLUT(atoms) {
+  const Q = 8;
+  const N = 256 / Q; // 32
+  const SAT_THRESHOLD = 5;
+  const lut = new Uint8Array(N * N * N);
+  if (atoms.length === 0) return lut;
+  const maxIdx = Math.min(atoms.length - 1, 255);
+
+  const atomColored = new Uint8Array(maxIdx + 1);
+  for (let i = 0; i <= maxIdx; i++) {
+    const a = atoms[i];
+    const sat = Math.max(a.r, a.g, a.b) - Math.min(a.r, a.g, a.b);
+    atomColored[i] = sat > SAT_THRESHOLD ? 1 : 0;
+  }
+
+  for (let r = 0; r < N; r++) {
+    for (let g = 0; g < N; g++) {
+      for (let b = 0; b < N; b++) {
+        const rc = r * Q + Q / 2;
+        const gc = g * Q + Q / 2;
+        const bc = b * Q + Q / 2;
+        const pixSat = Math.max(rc, gc, bc) - Math.min(rc, gc, bc);
+        const pixColored = pixSat > SAT_THRESHOLD ? 1 : 0;
+        let bestSame = -1, bestSameD = Infinity;
+        let bestAny = 0, bestAnyD = Infinity;
+        for (let i = 0; i <= maxIdx; i++) {
+          const a = atoms[i];
+          const dr = rc - a.r, dg = gc - a.g, db = bc - a.b;
+          const d = dr*dr + dg*dg + db*db;
+          if (atomColored[i] === pixColored) {
+            if (d < bestSameD) { bestSameD = d; bestSame = i; }
+          }
+          if (d < bestAnyD) { bestAnyD = d; bestAny = i; }
+        }
+        lut[(r << 10) | (g << 5) | b] = bestSame >= 0 ? bestSame : bestAny;
+      }
+    }
+  }
+  return lut;
+}
+
+async function processLayer(layer) {
+  const src = layer.sourceImageData;
+  const w = src.width, h = src.height;
+  const sd = src.data;
+  const atoms = layer.colors || [];
+  const anyHidden = atoms.some(c => c.hidden);
+  let bmp;
+  if (!anyHidden) {
+    bmp = await createImageBitmap(src);
+  } else {
+    const lut = buildVoronoiLUT(atoms);
+    const hidFlags = new Uint8Array(Math.min(atoms.length, 256));
+    for (let i = 0; i < hidFlags.length; i++) hidFlags[i] = atoms[i].hidden ? 1 : 0;
+
+    const out = new ImageData(w, h);
+    const od = out.data;
+    for (let i = 0; i < sd.length; i += 4) {
+      const r = sd[i], g = sd[i + 1], b = sd[i + 2];
+      let a = sd[i + 3];
+      if (a > 0) {
+        const idx = lut[((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)];
+        if (hidFlags[idx]) a = 0;
+      }
+      od[i] = r; od[i + 1] = g; od[i + 2] = b; od[i + 3] = a;
+    }
+    bmp = await createImageBitmap(out);
+  }
+  if (layer.processedBitmap) layer.processedBitmap.close?.();
+  layer.processedBitmap = bmp;
+  layer.thumbDataURL = makeThumb(layer);
+}
+
+// ===== Canvas & rendering =====
+const canvas = $('stage');
+const ctx = canvas.getContext('2d');
+
+function dpr() { return window.devicePixelRatio || 1; }
+
+function resizeCanvas() {
+  const r = $('canvas-area').getBoundingClientRect();
+  const ratio = dpr();
+  canvas.width = Math.max(1, Math.round(r.width * ratio));
+  canvas.height = Math.max(1, Math.round(r.height * ratio));
+  canvas.style.width = r.width + 'px';
+  canvas.style.height = r.height + 'px';
+  render();
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+function screenToWorld(sx, sy) {
+  // sx, sy in CSS pixels (canvas client coordinates)
+  return {
+    x: (sx - state.view.x) / state.view.scale,
+    y: (sy - state.view.y) / state.view.scale,
+  };
+}
+
+function worldToScreen(wx, wy) {
+  return {
+    x: wx * state.view.scale + state.view.x,
+    y: wy * state.view.scale + state.view.y,
+  };
+}
+
+function layerLocalToWorld(layer, lx, ly) {
+  const c = Math.cos(layer.rotation), s = Math.sin(layer.rotation);
+  return {
+    x: layer.cx + (lx * c - ly * s) * layer.scale,
+    y: layer.cy + (lx * s + ly * c) * layer.scale,
+  };
+}
+
+function worldToLayerLocal(layer, wx, wy) {
+  const dx = wx - layer.cx, dy = wy - layer.cy;
+  const c = Math.cos(-layer.rotation), s = Math.sin(-layer.rotation);
+  const rx = dx * c - dy * s;
+  const ry = dx * s + dy * c;
+  return { x: rx / layer.scale, y: ry / layer.scale };
+}
+
+// Draw every visible layer with its current transform/opacity/blend onto
+// the given 2D context. The caller is responsible for setting up the
+// context's incoming transform (view, DPR, content bbox offset, ...) and
+// for clearing/filling the background beforehand.
+function drawLayers(targetCtx) {
+  for (const l of state.layers) {
+    if (!l.visible || !l.processedBitmap) continue;
+    targetCtx.save();
+    targetCtx.globalAlpha = l.opacity;
+    targetCtx.globalCompositeOperation = l.blendMode || 'source-over';
+    targetCtx.translate(l.cx, l.cy);
+    targetCtx.rotate(l.rotation);
+    targetCtx.scale(l.scale, l.scale);
+    targetCtx.drawImage(l.processedBitmap, -l.naturalW / 2, -l.naturalH / 2);
+    targetCtx.restore();
+  }
+}
+
+function render() {
+  const ratio = dpr();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = getBackgroundFill(ctx);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Apply DPR + view transform
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.translate(state.view.x, state.view.y);
+  ctx.scale(state.view.scale, state.view.scale);
+
+  drawLayers(ctx);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawHandles();
+
+  // Empty state
+  $('empty-canvas').classList.toggle('hidden', state.layers.length > 0);
+
+  // Zoom label
+  $('zoom-label').textContent = Math.round(state.view.scale * 100) + '%';
+}
+
+const HANDLE_SIZE = 8;
+const ROT_HANDLE_OFFSET = 28; // screen px above top edge
+
+function drawHandles() {
+  const sel = currentLayer();
+  if (!sel || !sel.visible) return;
+  const ratio = dpr();
+  const hw = sel.naturalW / 2, hh = sel.naturalH / 2;
+  const localCorners = [
+    { x: -hw, y: -hh, kind: 'tl' },
+    { x:  hw, y: -hh, kind: 'tr' },
+    { x:  hw, y:  hh, kind: 'br' },
+    { x: -hw, y:  hh, kind: 'bl' },
+  ];
+  const screenCorners = localCorners.map(c => {
+    const w = layerLocalToWorld(sel, c.x, c.y);
+    const s = worldToScreen(w.x, w.y);
+    return { ...s, kind: c.kind };
+  });
+
+  ctx.save();
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  // Bbox outline
+  ctx.strokeStyle = 'rgba(88, 166, 255, .9)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(screenCorners[0].x, screenCorners[0].y);
+  for (let i = 1; i < 4; i++) ctx.lineTo(screenCorners[i].x, screenCorners[i].y);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Rotation handle: extends from top-middle
+  const topMidLocal = { x: 0, y: -hh };
+  const topMidW = layerLocalToWorld(sel, topMidLocal.x, topMidLocal.y);
+  const topMidS = worldToScreen(topMidW.x, topMidW.y);
+  // Normal to top edge in screen space (above bbox)
+  const tlS = screenCorners[0], trS = screenCorners[1];
+  const edgeDX = trS.x - tlS.x, edgeDY = trS.y - tlS.y;
+  const edgeLen = Math.hypot(edgeDX, edgeDY) || 1;
+  // Outward normal (away from center)
+  const center = worldToScreen(sel.cx, sel.cy);
+  let nx = -edgeDY / edgeLen, ny = edgeDX / edgeLen;
+  // Make sure normal points away from center
+  const toCenterX = center.x - topMidS.x, toCenterY = center.y - topMidS.y;
+  if (nx * toCenterX + ny * toCenterY > 0) { nx = -nx; ny = -ny; }
+  const rotHandleX = topMidS.x + nx * ROT_HANDLE_OFFSET;
+  const rotHandleY = topMidS.y + ny * ROT_HANDLE_OFFSET;
+  ctx.beginPath();
+  ctx.moveTo(topMidS.x, topMidS.y);
+  ctx.lineTo(rotHandleX, rotHandleY);
+  ctx.stroke();
+
+  // Draw corner handles
+  ctx.fillStyle = '#58a6ff';
+  ctx.strokeStyle = '#0f1117';
+  ctx.lineWidth = 1.5;
+  for (const c of screenCorners) {
+    ctx.beginPath();
+    ctx.rect(c.x - HANDLE_SIZE/2, c.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Rotation handle dot
+  ctx.beginPath();
+  ctx.arc(rotHandleX, rotHandleY, HANDLE_SIZE / 2 + 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Stash handle positions for hit testing
+  sel._handles = {
+    corners: screenCorners,
+    rot: { x: rotHandleX, y: rotHandleY },
+  };
+
+  ctx.restore();
+}
+
+function currentLayer() {
+  return state.layers.find(l => l.id === state.selectedId) || null;
+}
+
+// ===== Mouse interaction =====
+let drag = null;
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+
+  // Pan: middle button or space-held or right button
+  if (e.button === 1 || e.button === 2 || e.shiftKey) {
+    e.preventDefault();
+    drag = { kind: 'pan', startX: sx, startY: sy, viewX0: state.view.x, viewY0: state.view.y };
+    canvas.classList.add('panning');
+    return;
+  }
+  if (e.button !== 0) return;
+
+  const sel = currentLayer();
+  // Check handle hit
+  if (sel && sel._handles) {
+    // Rotation handle
+    const rh = sel._handles.rot;
+    if (Math.hypot(rh.x - sx, rh.y - sy) <= HANDLE_SIZE + 2) {
+      const w = screenToWorld(sx, sy);
+      const angle0 = Math.atan2(w.y - sel.cy, w.x - sel.cx);
+      drag = { kind: 'rotate', layerId: sel.id, angle0, rotation0: sel.rotation };
+      canvas.classList.add('rotating');
+      return;
+    }
+    // Corner handles
+    for (const c of sel._handles.corners) {
+      if (Math.abs(c.x - sx) <= HANDLE_SIZE && Math.abs(c.y - sy) <= HANDLE_SIZE) {
+        const w = screenToWorld(sx, sy);
+        const dist0 = Math.hypot(w.x - sel.cx, w.y - sel.cy);
+        drag = { kind: 'scale', layerId: sel.id, dist0, scale0: sel.scale, corner: c.kind };
+        canvas.classList.add('dragging');
+        return;
+      }
+    }
+  }
+
+  // Hit test layers from top to bottom
+  const w = screenToWorld(sx, sy);
+  let hit = null;
+  for (let i = state.layers.length - 1; i >= 0; i--) {
+    const l = state.layers[i];
+    if (!l.visible) continue;
+    const local = worldToLayerLocal(l, w.x, w.y);
+    if (Math.abs(local.x) <= l.naturalW / 2 && Math.abs(local.y) <= l.naturalH / 2) {
+      hit = l; break;
+    }
+  }
+  if (hit) {
+    state.selectedId = hit.id;
+    drag = { kind: 'move', layerId: hit.id, startX: sx, startY: sy, cx0: hit.cx, cy0: hit.cy };
+    canvas.classList.add('dragging');
+    renderLayersList();
+    renderProps();
+    updateToolbar();
+    render();
+  } else {
+    // Click empty area: pan
+    drag = { kind: 'pan', startX: sx, startY: sy, viewX0: state.view.x, viewY0: state.view.y };
+    canvas.classList.add('panning');
+  }
+});
+
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+
+  if (drag.kind === 'pan') {
+    state.view.x = drag.viewX0 + (sx - drag.startX);
+    state.view.y = drag.viewY0 + (sy - drag.startY);
+    render();
+    return;
+  }
+
+  const l = state.layers.find(x => x.id === drag.layerId);
+  if (!l) return;
+
+  if (drag.kind === 'move') {
+    const dxScreen = sx - drag.startX, dyScreen = sy - drag.startY;
+    l.cx = drag.cx0 + dxScreen / state.view.scale;
+    l.cy = drag.cy0 + dyScreen / state.view.scale;
+    render();
+    syncPropsInputs();
+  } else if (drag.kind === 'rotate') {
+    const w = screenToWorld(sx, sy);
+    const angle = Math.atan2(w.y - l.cy, w.x - l.cx);
+    let newRot = drag.rotation0 + (angle - drag.angle0);
+    if (e.shiftKey) {
+      // snap to 15°
+      const step = Math.PI / 12;
+      newRot = Math.round(newRot / step) * step;
+    }
+    l.rotation = newRot;
+    render();
+    syncPropsInputs();
+  } else if (drag.kind === 'scale') {
+    const w = screenToWorld(sx, sy);
+    const dist = Math.hypot(w.x - l.cx, w.y - l.cy);
+    if (drag.dist0 > 0.5) {
+      let s = drag.scale0 * dist / drag.dist0;
+      s = Math.max(0.01, Math.min(50, s));
+      l.scale = s;
+      render();
+      syncPropsInputs();
+    }
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (!drag) return;
+  drag = null;
+  canvas.classList.remove('dragging', 'panning', 'rotating');
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left;
+  const sy = e.clientY - rect.top;
+  const w = screenToWorld(sx, sy);
+  const factor = Math.exp(-e.deltaY * 0.0015);
+  state.view.scale = Math.max(0.02, Math.min(50, state.view.scale * factor));
+  // Keep the point under the cursor stable
+  state.view.x = sx - w.x * state.view.scale;
+  state.view.y = sy - w.y * state.view.scale;
+  render();
+}, { passive: false });
+
+function fitAll() {
+  if (state.layers.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const l of state.layers) {
+    if (!l.visible) continue;
+    const hw = l.naturalW / 2, hh = l.naturalH / 2;
+    const corners = [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]];
+    for (const [lx, ly] of corners) {
+      const w = layerLocalToWorld(l, lx, ly);
+      if (w.x < minX) minX = w.x;
+      if (w.y < minY) minY = w.y;
+      if (w.x > maxX) maxX = w.x;
+      if (w.y > maxY) maxY = w.y;
+    }
+  }
+  if (!isFinite(minX)) return;
+  const r = $('canvas-area').getBoundingClientRect();
+  const pad = 60;
+  const bw = maxX - minX, bh = maxY - minY;
+  const sx = (r.width - pad * 2) / bw;
+  const sy = (r.height - pad * 2) / bh;
+  const s = Math.min(sx, sy);
+  state.view.scale = Math.max(0.02, Math.min(50, s));
+  state.view.x = r.width / 2 - ((minX + maxX) / 2) * state.view.scale;
+  state.view.y = r.height / 2 - ((minY + maxY) / 2) * state.view.scale;
+  render();
+}
+
+$('btn-fit-all').addEventListener('click', fitAll);
+$('btn-reset-view').addEventListener('click', () => {
+  state.view = { x: 0, y: 0, scale: 1 };
+  fitAll();
+});
+
+// ===== Layers list =====
+const SVG_EYE = '<svg viewBox="0 0 16 16"><path d="M8 3C4 3 1.5 8 1.5 8S4 13 8 13 14.5 8 14.5 8 12 3 8 3zm0 7.5A2.5 2.5 0 1 1 8 5.5a2.5 2.5 0 0 1 0 5z"/></svg>';
+const SVG_EYE_OFF = '<svg viewBox="0 0 16 16"><path d="M2 2l12 12M5 5C3 6.5 1.5 8 1.5 8S4 13 8 13c1 0 1.9-.2 2.7-.5M8 3c4 0 6.5 5 6.5 5s-.6 1.2-1.7 2.5M6.2 6.2A2.5 2.5 0 0 0 8 10.5"/></svg>';
+
+let listDrag = null;
+
+function renderLayersList() {
+  const list = $('layers-list');
+  list.innerHTML = '';
+  // Render in reverse order so top of list = top layer (last in array)
+  for (let i = state.layers.length - 1; i >= 0; i--) {
+    const l = state.layers[i];
+    const div = document.createElement('div');
+    div.className = 'layer-item';
+    if (l.id === state.selectedId) div.classList.add('selected');
+    if (!l.visible) div.classList.add('hidden');
+    div.draggable = true;
+    div.dataset.id = l.id;
+
+    div.innerHTML = `
+      <div class="layer-thumb">${l.thumbDataURL ? `<img src="${l.thumbDataURL}" alt="">` : ''}</div>
+      <span class="layer-name" title="${escapeHtml(l.name)}">${escapeHtml(l.name)}</span>
+      <button class="layer-vis" title="Toggle visibility">${l.visible ? SVG_EYE : SVG_EYE_OFF}</button>
+      <button class="layer-del" title="Remove">&times;</button>
+    `;
+
+    div.addEventListener('click', e => {
+      if (e.target.closest('.layer-vis') || e.target.closest('.layer-del')) return;
+      state.selectedId = l.id;
+      renderLayersList(); renderProps(); updateToolbar(); render();
+    });
+    div.querySelector('.layer-vis').addEventListener('click', e => {
+      e.stopPropagation();
+      l.visible = !l.visible;
+      renderLayersList(); render();
+    });
+    div.querySelector('.layer-del').addEventListener('click', e => {
+      e.stopPropagation();
+      removeLayer(l.id);
+    });
+
+    div.addEventListener('dragstart', e => {
+      listDrag = { id: l.id };
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      clearListDropIndicators();
+      listDrag = null;
+    });
+    div.addEventListener('dragover', e => {
+      if (!listDrag) return;
+      e.preventDefault();
+      clearListDropIndicators();
+      const rect = div.getBoundingClientRect();
+      const side = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after';
+      div.classList.add(side === 'before' ? 'drop-before' : 'drop-after');
+      listDrag.targetId = l.id;
+      listDrag.side = side;
+    });
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      clearListDropIndicators();
+      if (!listDrag) return;
+      reorderLayer(listDrag.id, listDrag.targetId, listDrag.side);
+      listDrag = null;
+    });
+
+    list.appendChild(div);
+  }
+}
+
+function clearListDropIndicators() {
+  document.querySelectorAll('.layer-item.drop-before, .layer-item.drop-after').forEach(el => {
+    el.classList.remove('drop-before', 'drop-after');
+  });
+}
+
+function reorderLayer(srcId, targetId, side) {
+  if (srcId === targetId) return;
+  const srcIdx = state.layers.findIndex(l => l.id === srcId);
+  if (srcIdx < 0) return;
+  const [src] = state.layers.splice(srcIdx, 1);
+  let targetIdx = state.layers.findIndex(l => l.id === targetId);
+  if (targetIdx < 0) targetIdx = state.layers.length;
+  // List is rendered reversed (top in array = bottom of list). Side 'before' in DOM means *above* target in visual list = *after* target in array order.
+  const insertAt = side === 'before' ? targetIdx + 1 : targetIdx;
+  state.layers.splice(Math.min(insertAt, state.layers.length), 0, src);
+  renderLayersList(); render();
+}
+
+function removeLayer(id) {
+  const idx = state.layers.findIndex(l => l.id === id);
+  if (idx < 0) return;
+  const [removed] = state.layers.splice(idx, 1);
+  removed.processedBitmap?.close?.();
+  if (state.selectedId === id) state.selectedId = state.layers[state.layers.length - 1]?.id ?? null;
+  renderLayersList(); renderProps(); updateToolbar(); render();
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Map an RGB triplet to a 3-D "perceptual" coordinate used for chip
+// clustering. The goal: atoms that are "the same color, just lighter or
+// darker or paler" should be close together; atoms with different hues
+// should be far apart; and grayscale atoms should never merge with
+// colored ones.
+//
+// Layout:
+//   - Grayscale (sat < 8): coord = (0, 0, lightness). Lives on the
+//     central axis; clusters by lightness only.
+//   - Colored:   coord = (cos h × 220, sin h × 220 + 800, lightness).
+//     The +800 Y-offset puts the entire color region far from the
+//     gray axis (distance ≥ 800), so a merge distance up to ~600 can
+//     freely group hues without ever pulling in a gray atom.
+//
+// With this metric, light-pink and dark-red atoms (same hue, very
+// different lightness) end up close, so a single "red" chip covers
+// both. Two distinct hues (red vs green, 120° apart) stay separate
+// until the merge distance grows past their hue-circle chord (~380).
+function perceptualCoord(r, g, b) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  if (max - min < 8) return [0, 0, lightness];
+  let h;
+  if (max === r) h = ((g - b) / (max - min)) % 6;
+  else if (max === g) h = (b - r) / (max - min) + 2;
+  else h = (r - g) / (max - min) + 4;
+  if (h < 0) h += 6;
+  const hueRad = h * Math.PI / 3;
+  return [Math.cos(hueRad) * 220, Math.sin(hueRad) * 220 + 800, lightness];
+}
+
+function groupAtoms(atoms, dist) {
+  const distSq = dist * dist;
+  const groups = [];
+  for (let i = 0; i < atoms.length; i++) {
+    const a = atoms[i];
+    const ac = perceptualCoord(a.r, a.g, a.b);
+    let near = null, bestD = Infinity;
+    for (const g of groups) {
+      const gc = perceptualCoord(g.r, g.g, g.b);
+      const dr = ac[0] - gc[0], dg = ac[1] - gc[1], db = ac[2] - gc[2];
+      const d = dr*dr + dg*dg + db*db;
+      if (d < distSq && d < bestD) { near = g; bestD = d; }
+    }
+    if (near) {
+      const total = near.size + a.size;
+      near.r = Math.round((near.r * near.size + a.r * a.size) / total);
+      near.g = Math.round((near.g * near.size + a.g * a.size) / total);
+      near.b = Math.round((near.b * near.size + a.b * a.size) / total);
+      near.size = total;
+      near.atomIdx.push(i);
+    } else {
+      groups.push({ r: a.r, g: a.g, b: a.b, size: a.size, atomIdx: [i] });
+    }
+  }
+  groups.sort((a, b) => b.size - a.size);
+  return groups;
+}
+
+// Bisect on the merge distance to produce roughly the requested number of
+// display groups. groupAtoms count varies monotonically with distance
+// (more distance → fewer groups), so binary search converges in <20 steps
+// even for hundreds of atoms.
+function clusterAtomsToCount(atoms, targetN) {
+  if (atoms.length <= targetN) return groupAtoms(atoms, 0);
+  // Bisection upper bound bumped to 1500 to accommodate the hue-aware
+  // coordinate space where grays sit ~800 units from any color region.
+  let lo = 0, hi = 1500;
+  let result = null;
+  for (let iter = 0; iter < 18; iter++) {
+    const mid = (lo + hi) / 2;
+    const groups = groupAtoms(atoms, mid);
+    if (groups.length > targetN) lo = mid;
+    else { hi = mid; result = groups; }
+    if (groups.length === targetN) return groups;
+  }
+  return result || groupAtoms(atoms, hi);
+}
+
+// Chips are per-layer: they show the atoms detected in `l.colors`. Pure
+// white / black get their own dedicated chips so they're easy to find.
+function renderColorChips(l) {
+  const chipsEl = $('p-chips');
+  if (!chipsEl) return;
+  chipsEl.innerHTML = '';
+  if (!l) return;
+  const atoms = l.colors || [];
+
+  const isWhite = a => a.r >= 250 && a.g >= 250 && a.b >= 250;
+  const isBlack = a => a.r <= 5 && a.g <= 5 && a.b <= 5;
+  const whiteIdx = [], blackIdx = [], regularAtoms = [];
+  for (let i = 0; i < atoms.length; i++) {
+    if (isWhite(atoms[i])) whiteIdx.push(i);
+    else if (isBlack(atoms[i])) blackIdx.push(i);
+    else regularAtoms.push({ ...atoms[i], _atomIdx: i });
+  }
+
+  const target = state.colorGroupCount;
+  const regularGroups = clusterAtomsToCount(regularAtoms, target);
+
+  const display = [];
+  if (whiteIdx.length > 0) display.push({ r: 255, g: 255, b: 255, atomIdx: whiteIdx, special: 'Pure white' });
+  if (blackIdx.length > 0) display.push({ r: 0, g: 0, b: 0, atomIdx: blackIdx, special: 'Pure black' });
+  for (const g of regularGroups) {
+    display.push({ r: g.r, g: g.g, b: g.b, atomIdx: g.atomIdx.map(i => regularAtoms[i]._atomIdx) });
+  }
+
+  for (const group of display) {
+    const allHidden = group.atomIdx.every(i => atoms[i].hidden);
+    const anyHidden = group.atomIdx.some(i => atoms[i].hidden);
+    const chip = document.createElement('div');
+    let cls = 'color-chip';
+    if (allHidden) cls += ' hidden';
+    else if (anyHidden) cls += ' partial';
+    if (group.special) cls += ' special';
+    chip.className = cls;
+    const subtext = group.atomIdx.length > 1 ? ` (${group.atomIdx.length})` : '';
+    const label = group.special ? `${group.special}${subtext}` : `rgb(${group.r},${group.g},${group.b})${subtext}`;
+    chip.title = `${label} — click to ${allHidden ? 'show' : 'hide'}`;
+    chip.innerHTML = `<div class="swatch" style="background:rgb(${group.r},${group.g},${group.b})"></div>`;
+    chip.addEventListener('click', async () => {
+      const newHidden = !allHidden;
+      for (const i of group.atomIdx) atoms[i].hidden = newHidden;
+      await processLayer(l);
+      renderColorChips(l);
+      renderLayersList();
+      render();
+    });
+    chipsEl.appendChild(chip);
+  }
+}
+
+// ===== Properties panel =====
+function renderProps() {
+  const props = $('props');
+  const l = currentLayer();
+  if (!l) {
+    props.innerHTML = '<div class="empty">Select a layer to edit its properties.</div>';
+    return;
+  }
+  props.innerHTML = `
+    <div class="props-section">
+      <h4>Transform</h4>
+      <div class="row"><label>X</label><input type="number" id="p-x" step="1"></div>
+      <div class="row"><label>Y</label><input type="number" id="p-y" step="1"></div>
+      <div class="row"><label>Rotation</label><input type="number" id="p-rot" step="0.5"><span class="unit">°</span></div>
+      <div class="row"><label>Scale</label><input type="number" id="p-scale" step="0.01" min="0.01"></div>
+      <div class="row"><label>Opacity</label><input type="range" id="p-opacity" min="0" max="100" step="1"><span class="val" id="p-opacity-val">100%</span></div>
+      <div class="row"><label>Blend</label><select id="p-blend" style="flex:1;background:#0d1117;color:#e1e4e8;border:1px solid #30363d;border-radius:5px;padding:.25rem .4rem;font-size:.8rem"></select></div>
+    </div>
+
+    <div class="props-section">
+      <h4>Hide colors</h4>
+      <div class="color-chips" id="p-chips"></div>
+      <div class="row" style="margin-top:.5rem">
+        <label>Groups</label>
+        <input type="range" id="p-tol" min="2" max="50" step="1">
+        <span class="val" id="p-tol-val"></span>
+      </div>
+      ${state.layers.length >= 2 ? '<p class="compact-help">Hidden colors are ignored by auto-overlay.</p>' : ''}
+    </div>
+
+    <div class="props-section">
+      <h4>Order</h4>
+      <div class="row" style="gap:.35rem">
+        <button class="icon-btn" id="p-up">Up</button>
+        <button class="icon-btn" id="p-down">Down</button>
+        <button class="icon-btn" id="p-top">Top</button>
+        <button class="icon-btn" id="p-bottom">Bottom</button>
+      </div>
+    </div>
+  `;
+
+  $('p-x').value = round1(l.cx);
+  $('p-y').value = round1(l.cy);
+  $('p-rot').value = round1(l.rotation * 180 / Math.PI);
+  $('p-scale').value = round3(l.scale);
+  $('p-opacity').value = Math.round(l.opacity * 100);
+  $('p-opacity-val').textContent = Math.round(l.opacity * 100) + '%';
+
+  renderColorChips(l);
+
+  $('p-tol').value = state.colorGroupCount;
+  $('p-tol-val').textContent = state.colorGroupCount;
+
+  $('p-x').addEventListener('change', () => { l.cx = parseFloat($('p-x').value) || 0; render(); });
+  $('p-y').addEventListener('change', () => { l.cy = parseFloat($('p-y').value) || 0; render(); });
+  $('p-rot').addEventListener('change', () => { l.rotation = (parseFloat($('p-rot').value) || 0) * Math.PI / 180; render(); });
+  $('p-scale').addEventListener('change', () => {
+    const s = parseFloat($('p-scale').value);
+    if (s > 0) { l.scale = s; render(); }
+  });
+  $('p-opacity').addEventListener('input', () => {
+    l.opacity = parseInt($('p-opacity').value) / 100;
+    $('p-opacity-val').textContent = $('p-opacity').value + '%';
+    render();
+  });
+
+  const blendSel = $('p-blend');
+  blendSel.innerHTML = BLEND_MODES.map(([v, name]) => `<option value="${v}">${name}</option>`).join('');
+  blendSel.value = l.blendMode || 'source-over';
+  blendSel.addEventListener('change', () => {
+    l.blendMode = blendSel.value;
+    render();
+  });
+
+  $('p-tol').addEventListener('input', () => {
+    const v = parseInt($('p-tol').value);
+    $('p-tol-val').textContent = v;
+    state.colorGroupCount = v;
+    renderColorChips(l);
+  });
+
+  $('p-up').addEventListener('click', () => moveLayer(l.id, +1));
+  $('p-down').addEventListener('click', () => moveLayer(l.id, -1));
+  $('p-top').addEventListener('click', () => moveLayer(l.id, +999));
+  $('p-bottom').addEventListener('click', () => moveLayer(l.id, -999));
+}
+
+function syncPropsInputs() {
+  const l = currentLayer();
+  if (!l) return;
+  const x = $('p-x'), y = $('p-y'), rot = $('p-rot'), scale = $('p-scale');
+  if (x && document.activeElement !== x) x.value = round1(l.cx);
+  if (y && document.activeElement !== y) y.value = round1(l.cy);
+  if (rot && document.activeElement !== rot) rot.value = round1(l.rotation * 180 / Math.PI);
+  if (scale && document.activeElement !== scale) scale.value = round3(l.scale);
+}
+
+function round1(v) { return Math.round(v * 10) / 10; }
+function round3(v) { return Math.round(v * 1000) / 1000; }
+
+function moveLayer(id, delta) {
+  const idx = state.layers.findIndex(l => l.id === id);
+  if (idx < 0) return;
+  const [l] = state.layers.splice(idx, 1);
+  let newIdx = idx + delta;
+  newIdx = Math.max(0, Math.min(state.layers.length, newIdx));
+  state.layers.splice(newIdx, 0, l);
+  renderLayersList(); render();
+}
+
+function updateToolbar() {
+  $('btn-auto-overlay').disabled = state.layers.length < 2 || !currentLayer();
+}
+
+// ===== File input handlers =====
+$('btn-add').addEventListener('click', () => $('file-input').click());
+$('btn-add-folder').addEventListener('click', () => $('folder-input').click());
+
+$('file-input').addEventListener('change', () => {
+  if ($('file-input').files.length) addFiles($('file-input').files);
+  $('file-input').value = '';
+});
+$('folder-input').addEventListener('change', () => {
+  if ($('folder-input').files.length) addFiles($('folder-input').files);
+  $('folder-input').value = '';
+});
+
+$('upload-prompt').addEventListener('click', () => $('file-input').click());
+
+// Drag-and-drop on whole page
+let dragCounter = 0;
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+document.addEventListener('dragenter', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter++;
+  $('drop-overlay').classList.add('visible');
+});
+document.addEventListener('dragleave', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) { dragCounter = 0; $('drop-overlay').classList.remove('visible'); }
+});
+document.addEventListener('dragover', e => {
+  if (isFileDrag(e)) e.preventDefault();
+});
+document.addEventListener('drop', async e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = 0;
+  $('drop-overlay').classList.remove('visible');
+  const files = await readDroppedItems(e.dataTransfer);
+  if (files.length) addFiles(files);
+});
+
+function readDroppedItems(dt) {
+  return new Promise(resolve => {
+    if (!dt.items || !dt.items.length) {
+      resolve(Array.from(dt.files));
+      return;
+    }
+    const entries = [];
+    for (const it of dt.items) {
+      const e = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+      if (e) entries.push(e);
+    }
+    if (!entries.some(e => e.isDirectory)) {
+      resolve(Array.from(dt.files));
+      return;
+    }
+    const out = [];
+    let pending = 0;
+    function walk(entry) {
+      if (entry.isFile) {
+        pending++;
+        entry.file(f => {
+          out.push(f);
+          if (--pending === 0) resolve(out);
+        });
+      } else if (entry.isDirectory) {
+        pending++;
+        entry.createReader().readEntries(children => {
+          for (const c of children) walk(c);
+          if (--pending === 0) resolve(out);
+        });
+      }
+    }
+    for (const e of entries) walk(e);
+    if (pending === 0) resolve(out);
+  });
+}
+
+// ===== Export =====
+// Apply the current background (checker / white / black / custom) to a
+// context. Pattern needs to be created per-context, hence the inline tile
+// construction for 'checker'.
+function fillExportBackground(targetCtx, w, h) {
+  if (state.backgroundMode === 'checker') {
+    const tile = document.createElement('canvas');
+    tile.width = tile.height = 16;
+    const tctx = tile.getContext('2d');
+    tctx.fillStyle = '#5b6066'; tctx.fillRect(0, 0, 16, 16);
+    tctx.fillStyle = '#8b9098'; tctx.fillRect(0, 0, 8, 8); tctx.fillRect(8, 8, 8, 8);
+    targetCtx.fillStyle = targetCtx.createPattern(tile, 'repeat');
+  } else if (state.backgroundMode === 'white') targetCtx.fillStyle = '#ffffff';
+  else if (state.backgroundMode === 'black') targetCtx.fillStyle = '#000000';
+  else targetCtx.fillStyle = state.backgroundCustom;
+  targetCtx.fillRect(0, 0, w, h);
+}
+
+// "Content" crop: a fresh canvas tightly fitted to all visible layers'
+// world bbox. The full native resolution of each layer is preserved.
+function buildContentExportCanvas() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const l of state.layers) {
+    if (!l.visible) continue;
+    const hw = l.naturalW / 2, hh = l.naturalH / 2;
+    for (const [lx, ly] of [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]) {
+      const w = layerLocalToWorld(l, lx, ly);
+      if (w.x < minX) minX = w.x; if (w.y < minY) minY = w.y;
+      if (w.x > maxX) maxX = w.x; if (w.y > maxY) maxY = w.y;
+    }
+  }
+  if (!isFinite(minX)) return null;
+  const pad = 20;
+  const ow = Math.ceil(maxX - minX + pad * 2);
+  const oh = Math.ceil(maxY - minY + pad * 2);
+  const out = document.createElement('canvas');
+  out.width = ow; out.height = oh;
+  const octx = out.getContext('2d');
+  fillExportBackground(octx, ow, oh);
+  octx.translate(pad - minX, pad - minY);
+  drawLayers(octx);
+  return out;
+}
+
+// "View" crop: re-renders the current view rect (what's on screen) to a
+// fresh canvas at the live canvas's pixel resolution — same composition
+// as the visible preview but with handles/bbox omitted.
+function buildViewExportCanvas() {
+  if (state.layers.length === 0) return null;
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = canvas.height;
+  const octx = out.getContext('2d');
+  fillExportBackground(octx, out.width, out.height);
+  const ratio = dpr();
+  octx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  octx.translate(state.view.x, state.view.y);
+  octx.scale(state.view.scale, state.view.scale);
+  drawLayers(octx);
+  return out;
+}
+
+function performExport(format, quality, cropMode) {
+  const out = cropMode === 'view' ? buildViewExportCanvas() : buildContentExportCanvas();
+  if (!out) return;
+  const ext = format === 'image/jpeg' ? 'jpg' : 'png';
+  const q = format === 'image/jpeg' ? quality / 100 : undefined;
+  out.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `overlay.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, format, q);
+}
+
+// Modal wiring
+function openExportModal() {
+  if (state.layers.length === 0) return;
+  $('export-modal').classList.add('visible');
+}
+function closeExportModal() {
+  $('export-modal').classList.remove('visible');
+}
+function syncExportFormatUI() {
+  const isJpeg = $('export-format').value === 'image/jpeg';
+  $('export-quality-row').style.display = isJpeg ? '' : 'none';
+}
+
+$('btn-export').addEventListener('click', openExportModal);
+$('export-cancel').addEventListener('click', closeExportModal);
+$('export-modal').addEventListener('click', e => {
+  // Click outside the modal box closes
+  if (e.target === $('export-modal')) closeExportModal();
+});
+$('export-format').addEventListener('change', syncExportFormatUI);
+$('export-quality').addEventListener('input', () => {
+  $('export-quality-val').textContent = $('export-quality').value;
+});
+$('export-confirm').addEventListener('click', () => {
+  const format = $('export-format').value;
+  const quality = parseInt($('export-quality').value);
+  const cropMode = $('export-crop').value;
+  performExport(format, quality, cropMode);
+  closeExportModal();
+});
+
+// ===== Keyboard =====
+document.addEventListener('keydown', e => {
+  // Don't capture if typing in inputs
+  if (e.target.matches('input, textarea')) return;
+  const l = currentLayer();
+  if (!l) return;
+  const step = e.shiftKey ? 10 : 1;
+  switch (e.key) {
+    case 'ArrowLeft': l.cx -= step / state.view.scale; render(); syncPropsInputs(); e.preventDefault(); break;
+    case 'ArrowRight': l.cx += step / state.view.scale; render(); syncPropsInputs(); e.preventDefault(); break;
+    case 'ArrowUp': l.cy -= step / state.view.scale; render(); syncPropsInputs(); e.preventDefault(); break;
+    case 'ArrowDown': l.cy += step / state.view.scale; render(); syncPropsInputs(); e.preventDefault(); break;
+    case 'Delete': case 'Backspace': removeLayer(l.id); e.preventDefault(); break;
+  }
+});
+
+// ===== FFT (Cooley-Tukey, in-place, size must be power of 2) =====
+function fft1d(re, im, inverse) {
+  const n = re.length;
+  // bit-reversal permutation
+  let j = 0;
+  for (let i = 0; i < n - 1; i++) {
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+    let m = n >> 1;
+    while (m > 0 && j >= m) { j -= m; m >>= 1; }
+    j += m;
+  }
+  // butterflies
+  for (let len = 2; len <= n; len <<= 1) {
+    const half = len >> 1;
+    const angle = (inverse ? 2 : -2) * Math.PI / len;
+    const wReal = Math.cos(angle);
+    const wImag = Math.sin(angle);
+    for (let i = 0; i < n; i += len) {
+      let wr = 1, wi = 0;
+      for (let k = 0; k < half; k++) {
+        const ar = re[i + k], ai = im[i + k];
+        const br = re[i + k + half] * wr - im[i + k + half] * wi;
+        const bi = re[i + k + half] * wi + im[i + k + half] * wr;
+        re[i + k] = ar + br;
+        im[i + k] = ai + bi;
+        re[i + k + half] = ar - br;
+        im[i + k + half] = ai - bi;
+        const newWr = wr * wReal - wi * wImag;
+        wi = wr * wImag + wi * wReal;
+        wr = newWr;
+      }
+    }
+  }
+  if (inverse) {
+    for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+  }
+}
+
+function fft2d(re, im, w, h, inverse) {
+  const rowRe = new Float32Array(w), rowIm = new Float32Array(w);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) { rowRe[x] = re[y*w+x]; rowIm[x] = im[y*w+x]; }
+    fft1d(rowRe, rowIm, inverse);
+    for (let x = 0; x < w; x++) { re[y*w+x] = rowRe[x]; im[y*w+x] = rowIm[x]; }
+  }
+  const colRe = new Float32Array(h), colIm = new Float32Array(h);
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) { colRe[y] = re[y*w+x]; colIm[y] = im[y*w+x]; }
+    fft1d(colRe, colIm, inverse);
+    for (let y = 0; y < h; y++) { re[y*w+x] = colRe[y]; im[y*w+x] = colIm[y]; }
+  }
+}
+
+// Phase correlation: returns the buffer-pixel shift (dx, dy) and peak height.
+// `subpixel: true` refines (dx, dy) to fractional accuracy via parabolic fit
+// on the 3×3 correlation neighborhood around the integer peak. This is the
+// classic sub-pixel registration trick — usually accurate to ~0.05 pixels
+// for well-correlated images.
+function phaseCorrelation(buf1, buf2, w, h, refFFT, subpixel) {
+  const n = w * h;
+  let re1, im1;
+  if (refFFT) {
+    re1 = refFFT.re; im1 = refFFT.im;
+  } else {
+    re1 = new Float32Array(n); im1 = new Float32Array(n);
+    applyHannAndFFT(buf1, re1, im1, w, h);
+  }
+  const re2 = new Float32Array(n), im2 = new Float32Array(n);
+  applyHannAndFFT(buf2, re2, im2, w, h);
+  const cr = new Float32Array(n), ci = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const ar = re1[i], ai = im1[i];
+    const br = re2[i], bi = -im2[i];
+    const xr = ar * br - ai * bi;
+    const xi = ar * bi + ai * br;
+    const mag = Math.sqrt(xr * xr + xi * xi) + 1e-10;
+    cr[i] = xr / mag;
+    ci[i] = xi / mag;
+  }
+  fft2d(cr, ci, w, h, true);
+  let maxV = -Infinity, maxI = 0;
+  for (let i = 0; i < n; i++) {
+    if (cr[i] > maxV) { maxV = cr[i]; maxI = i; }
+  }
+  const px = maxI % w;
+  const py = Math.floor(maxI / w);
+  let dx = px, dy = py;
+
+  let subX = 0, subY = 0;
+  if (subpixel) {
+    // Sample 3 neighbors along each axis with wrap-around — the correlation
+    // surface is periodic so we can index safely modulo w/h.
+    const at = (x, y) => cr[((y + h) % h) * w + ((x + w) % w)];
+    const c = cr[maxI];
+    const xm = at(px - 1, py), xp = at(px + 1, py);
+    const ym = at(px, py - 1), yp = at(px, py + 1);
+    // Parabolic-fit vertex: for samples y0, y1, y2 at offsets -1, 0, +1,
+    // the vertex offset is (y0 - y2) / (2*(y0 + y2 - 2*y1)).
+    const denomX = 2 * (xm + xp - 2 * c);
+    const denomY = 2 * (ym + yp - 2 * c);
+    if (Math.abs(denomX) > 1e-9) subX = (xm - xp) / denomX;
+    if (Math.abs(denomY) > 1e-9) subY = (ym - yp) / denomY;
+    if (subX < -1 || subX > 1) subX = 0;
+    if (subY < -1 || subY > 1) subY = 0;
+  }
+  // Unwrap to signed shift in (-w/2, w/2]
+  if (dx >= w / 2) dx -= w;
+  if (dy >= h / 2) dy -= h;
+  return { dx: dx + subX, dy: dy + subY, peak: maxV };
+}
+
+function applyHannAndFFT(buf, re, im, w, h) {
+  for (let y = 0; y < h; y++) {
+    const wy = 0.5 * (1 - Math.cos(2 * Math.PI * y / (h - 1)));
+    for (let x = 0; x < w; x++) {
+      const wx = 0.5 * (1 - Math.cos(2 * Math.PI * x / (w - 1)));
+      re[y*w+x] = buf[y*w+x] * wx * wy;
+    }
+  }
+  fft2d(re, im, w, h, false);
+}
+
+// Sobel edge magnitude — emphasizes structural features, makes alignment robust
+// to overall brightness/contrast differences and reduces the impact of large flat
+// (background) regions.
+function sobelEdges(buf, w, h) {
+  const out = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const a = buf[i - w - 1], b = buf[i - w], c = buf[i - w + 1];
+      const d = buf[i - 1],                       e = buf[i + 1];
+      const f = buf[i + w - 1], g = buf[i + w],  hh = buf[i + w + 1];
+      const gx = (c + 2*e + hh) - (a + 2*d + f);
+      const gy = (f + 2*g + hh) - (a + 2*b + c);
+      out[i] = Math.sqrt(gx*gx + gy*gy);
+    }
+  }
+  return out;
+}
+
+// Masked cosine similarity. Aligned-by-phase-correlation: with our FFT
+// convention, peak t means buf2 = shift(buf1, t), so the aligned buf2
+// sample at position (y, x) is buf2[y - dy, x - dx].
+//
+// We score *only* pixels where the moving layer (buf2) has meaningful
+// content (above MASK_THRESHOLD). This is the key to handling partial
+// overlap: when the moving layer is a zoomed sub-region of the reference,
+// most of the buffer is "outside" the moving layer's footprint — those
+// empty pixels would otherwise dilute the score with zeros and let a
+// totally wrong (rot, scale) candidate win because its smaller footprint
+// happened to dodge more reference edges. Masking restricts the score
+// to "for each edge pixel the moving layer actually carries, how well
+// does the reference's edge map at the corresponding position?".
+function alignmentScore(buf1, buf2, w, h, dx, dy) {
+  const MASK_THRESHOLD = 0.02;
+  let dot = 0, e1 = 0, e2 = 0, n = 0, nFg = 0;
+  for (let y = 0; y < h; y++) {
+    const y2 = y - dy;
+    if (y2 < 0 || y2 >= h) continue;
+    for (let x = 0; x < w; x++) {
+      const x2 = x - dx;
+      if (x2 < 0 || x2 >= w) continue;
+      const v2 = buf2[y2 * w + x2];
+      if (v2 < MASK_THRESHOLD) continue;
+      const v1 = buf1[y * w + x];
+      dot += v1 * v2;
+      e1 += v1 * v1;
+      e2 += v2 * v2;
+      nFg++;
+    }
+  }
+  if (nFg < 100 || e1 < 1e-6 || e2 < 1e-6) return -1;
+  const cos = dot / (Math.sqrt(e1 * e2) + 1e-10);
+  // Reliability factor: penalize small-mask candidates. When the moving
+  // layer's footprint in the buffer is tiny (heavy zoom-out, scale near
+  // 0), the masked cosine can score surprisingly high just because the
+  // few mask pixels happened to coincide with dense reference edges by
+  // chance. Requiring the mask to cover at least ~4% of the buffer makes
+  // partial-overlap alignment prefer candidates where the moving layer
+  // actually has enough content for the match to be statistically
+  // meaningful. (Verified on the overlay-test case: at 1% the fake
+  // scale=0.45 basin beats truth; at 4% truth wins.)
+  const reliability = Math.min(1, nFg / (w * h * 0.04));
+  return cos * reliability;
+}
+
+// ===== Auto-overlay =====
+// Renders the layer (with given extra rotation/scale applied about refCenter in world space)
+// into a grayscale Float32Array of size SIZE×SIZE.
+function renderLayerToGrayBuffer(layer, refCenter, worldHalfExtent, size, extraRot = 0, extraScale = 1) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  const ppu = size / (2 * worldHalfExtent); // buffer pixels per world unit
+  // Transform: buffer pixel = ppu*(world - refCenter) + size/2
+  ctx.translate(size / 2, size / 2);
+  ctx.scale(ppu, ppu);
+  // Now world coords centered on refCenter
+  ctx.scale(extraScale, extraScale);
+  ctx.rotate(extraRot);
+  ctx.translate(layer.cx - refCenter.x, layer.cy - refCenter.y);
+  ctx.rotate(layer.rotation);
+  ctx.scale(layer.scale, layer.scale);
+  ctx.drawImage(layer.processedBitmap, -layer.naturalW / 2, -layer.naturalH / 2);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const buf = new Float32Array(size * size);
+  for (let i = 0; i < buf.length; i++) {
+    const r = data[i*4], g = data[i*4+1], b = data[i*4+2], a = data[i*4+3];
+    // Luminance, modulated by alpha so transparent areas don't contribute
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    buf[i] = (lum / 255) * (a / 255);
+  }
+  return { buf, ppu };
+}
+
+// Build the helpers needed to evaluate one (rotDeg, scl) candidate at a given
+// buffer size. Reference's Sobel-edge FFT is precomputed once.
+function buildEvaluator(ref, sel, refCenter, halfExtent, size) {
+  const { buf: refGray, ppu } = renderLayerToGrayBuffer(ref, refCenter, halfExtent, size, 0, 1);
+  const refEdges = sobelEdges(refGray, size, size);
+  const refRe = new Float32Array(size * size), refIm = new Float32Array(size * size);
+  applyHannAndFFT(refEdges, refRe, refIm, size, size);
+  const refFFT = { re: refRe, im: refIm };
+  return {
+    ppu,
+    eval(rotDeg, scl) {
+      const { buf: moveGray } = renderLayerToGrayBuffer(sel, refCenter, halfExtent, size, rotDeg * Math.PI / 180, scl);
+      const moveEdges = sobelEdges(moveGray, size, size);
+      const { dx, dy } = phaseCorrelation(null, moveEdges, size, size, refFFT);
+      // Score on Sobel edges, not raw grayscale: flat regions (white
+      // background) contribute zero, so the metric measures only how well
+      // structural edges line up. Critical for partial-overlap cases where
+      // a small zoomed sub-region must align to one part of a larger plan.
+      const score = alignmentScore(refEdges, moveEdges, size, size, dx, dy);
+      return { rotDeg, scale: scl, dx, dy, score };
+    },
+    evalSubpixel(rotDeg, scl) {
+      const { buf: moveGray } = renderLayerToGrayBuffer(sel, refCenter, halfExtent, size, rotDeg * Math.PI / 180, scl);
+      const moveEdges = sobelEdges(moveGray, size, size);
+      const { dx, dy } = phaseCorrelation(null, moveEdges, size, size, refFFT, true);
+      const score = alignmentScore(refEdges, moveEdges, size, size, Math.round(dx), Math.round(dy));
+      return { rotDeg, scale: scl, dx, dy, score };
+    },
+  };
+}
+
+// Auto-overlay is built around iterative refinement: a single pass picks a
+// rotation/scale grid winner, parabolically refines it, and applies the
+// sub-pixel translation. The outer loop just calls passes until either nothing
+// is moving (converged), the user clicks Stop, or we hit 10 passes.
+//
+// Pass 1 is "broad" — sweeps the full ±180° rotation space and a wide range
+// of scales at SIZE=128 so it can find the right basin from any starting
+// state. Passes 2+ are "refine" — a tight local grid at SIZE=512 with a
+// halfExtent cropped to 1/3 of the layer bbox, so each buffer pixel covers
+// only a few source pixels and the sub-pixel parabolic fit translates to
+// fractional-world-pixel accuracy.
+//
+// Between passes we run a small "snap" probe: try the nearest round values
+// for translation/rotation/scale and keep whichever scores best. When the
+// algorithm has converged near a clean architectural value (0°, integer
+// pixels, scale 1.0), this often catches the true optimum that the FFT
+// landscape's noise floor obscured.
+
+let autoOverlayAbort = false;
+
+function layerBBoxWorld(l) {
+  const hw = l.naturalW / 2, hh = l.naturalH / 2;
+  let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+  for (const [lx, ly] of [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]) {
+    const w = layerLocalToWorld(l, lx, ly);
+    if (w.x < mnX) mnX = w.x; if (w.y < mnY) mnY = w.y;
+    if (w.x > mxX) mxX = w.x; if (w.y > mxY) mxY = w.y;
+  }
+  return { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY };
+}
+
+function computeRefCenterAndExtent(ref, sel, tight) {
+  const refBB = layerBBoxWorld(ref), selBB = layerBBoxWorld(sel);
+  const refCenter = { x: (refBB.minX + refBB.maxX) / 2, y: (refBB.minY + refBB.maxY) / 2 };
+  if (tight) {
+    const r = Math.min(ref.naturalW, ref.naturalH) * ref.scale / 3;
+    return { refCenter, halfExtent: Math.max(120, r) };
+  }
+  const refRad = Math.max(refBB.maxX - refBB.minX, refBB.maxY - refBB.minY) / 2;
+  const selRad = Math.max(selBB.maxX - selBB.minX, selBB.maxY - selBB.minY) / 2;
+  const dCenters = Math.hypot(
+    (selBB.minX + selBB.maxX) / 2 - refCenter.x,
+    (selBB.minY + selBB.maxY) / 2 - refCenter.y,
+  );
+  return { refCenter, halfExtent: Math.max(refRad, selRad + dCenters) * 1.4 };
+}
+
+// Compose (Drot, Dscale, dxW, dyW) about refCenter onto the layer's current state.
+function applyTransformToLayer(sel, refCenter, Drot, Dscale, dxW, dyW) {
+  const nx = sel.cx - refCenter.x, ny = sel.cy - refCenter.y;
+  const cs = Math.cos(Drot), sn = Math.sin(Drot);
+  let rx = nx * cs - ny * sn, ry = nx * sn + ny * cs;
+  rx *= Dscale; ry *= Dscale;
+  sel.cx = refCenter.x + rx + dxW;
+  sel.cy = refCenter.y + ry + dyW;
+  sel.rotation += Drot;
+  sel.scale *= Dscale;
+  while (sel.rotation > Math.PI) sel.rotation -= 2 * Math.PI;
+  while (sel.rotation <= -Math.PI) sel.rotation += 2 * Math.PI;
+}
+
+// One pass: grid search + parabolic refine + sub-pixel translation. Mode
+// selects between a broad initial sweep and a tight local search.
+async function autoOverlayPass(ref, sel, mode, statusPrefix) {
+  const tight = mode === 'refine';
+  const { refCenter, halfExtent } = computeRefCenterAndExtent(ref, sel, tight);
+  // 256 for broad gives small/zoomed layers enough buffer footprint to
+  // phase-correlate reliably; 512 for refine for sub-pixel precision.
+  const size = mode === 'broad' ? 256 : 512;
+  const ev = buildEvaluator(ref, sel, refCenter, halfExtent, size);
+
+  // Grid. Broad mode sweeps the full rotation space at coarse resolution to
+  // find the basin from any starting state. Refine mode does a tight local
+  // search; since the outer loop iterates, each refine only needs to make a
+  // small step.
+  let rots, scales;
+  if (mode === 'broad') {
+    rots = [];
+    for (let r = -180; r < 180; r += 5) rots.push(r);
+    // Cover both "zoom out" (sub-0.5) and "zoom in" (>2.5) factors so
+    // partial-overlap cases — where the moving layer is a zoomed crop of
+    // the reference (or vice versa) — get a candidate scale near the
+    // truth in the broad pass.
+    scales = [0.2, 0.27, 0.35, 0.45, 0.58, 0.72, 0.85, 0.94, 1.0, 1.06, 1.18, 1.4, 1.7, 2.15, 2.8, 3.7, 5.0];
+  } else {
+    rots = [-0.6, -0.2, -0.05, 0, 0.05, 0.2, 0.6];
+    scales = [0.997, 0.999, 1.0, 1.001, 1.003];
+  }
+
+  let best = { score: -Infinity, rotDeg: 0, scale: 1, dx: 0, dy: 0 };
+  // Broad mode keeps all candidates so we can re-rank them; refine mode
+  // only tracks the running winner.
+  const allCandidates = mode === 'broad' ? [] : null;
+  const total = rots.length * scales.length;
+  let done = 0;
+  for (const r of rots) {
+    for (const s of scales) {
+      if (autoOverlayAbort) return null;
+      done++;
+      if (done % 12 === 0) {
+        showStatus(`${statusPrefix} (${done}/${total})`, done / total * 0.55);
+        await sleep(0);
+      }
+      const cand = ev.eval(r, s);
+      if (cand.score > best.score) best = cand;
+      if (allCandidates) allCandidates.push(cand);
+    }
+  }
+
+  // Top-K re-rank for broad pass with fine sub-scale search. The broad
+  // evaluator (SIZE=256, large halfExtent) is necessary for speed but its
+  // gappy scale grid (×1.4 ratios) misses narrow basins where the right
+  // scale lies between two grid points. For each top-K (rotDeg, scale)
+  // winner from broad, we apply just rot+scale (NOT the broad's coarse
+  // translation), and at the refine evaluator (SIZE=512, tight halfExtent)
+  // we sweep a fine scale multiplier (±20% in 7 steps) — at each, the
+  // refine PC finds a fresh translation. The (rot, scale) combo with the
+  // best refine score wins, and the refine's translation is what gets
+  // applied. This routinely promotes a true-basin candidate from rank
+  // ~50 in broad to rank 1 once seen at higher resolution.
+  if (mode === 'broad' && allCandidates) {
+    allCandidates.sort((a, b) => b.score - a.score);
+    // Build the rerank pool: top K globally + top-1 from each rotation
+    // bucket. Bucketing guarantees diverse-rotation coverage so a true
+    // basin at e.g. -90° doesn't get crowded out by 25 lookalike candidates
+    // at -120°. Without this, partial-overlap rotations buried at rank 50+
+    // never get the sub-scale verify treatment.
+    const K = Math.min(15, allCandidates.length);
+    const seen = new Set();
+    const top = [];
+    for (let i = 0; i < K; i++) {
+      const c = allCandidates[i];
+      const key = `${c.rotDeg}_${c.scale}`;
+      if (!seen.has(key)) { top.push(c); seen.add(key); }
+    }
+    // 20°-wide rotation buckets — 18 buckets cover the ±180° range.
+    const rotBuckets = new Map();
+    for (const c of allCandidates) {
+      const bucket = Math.floor((c.rotDeg + 180) / 20);
+      const cur = rotBuckets.get(bucket);
+      if (!cur || c.score > cur.score) rotBuckets.set(bucket, c);
+    }
+    for (const c of rotBuckets.values()) {
+      const key = `${c.rotDeg}_${c.scale}`;
+      if (!seen.has(key)) { top.push(c); seen.add(key); }
+    }
+    // Force-include cardinal rotations: architects often rotate by exactly
+    // 0/±90/±180°, and the broad pass's best scale at each such rotation
+    // is a prime candidate for the sub-scale verify search. Without this,
+    // a non-cardinal candidate at a bucket boundary can hide the true
+    // cardinal answer.
+    const cardinalRots = [0, 90, -90, 180, -180];
+    for (const cardinal of cardinalRots) {
+      const atCard = allCandidates.filter(c => c.rotDeg === cardinal);
+      atCard.sort((a, b) => b.score - a.score);
+      for (let i = 0; i < Math.min(2, atCard.length); i++) {
+        const c = atCard[i];
+        const key = `${c.rotDeg}_${c.scale}`;
+        if (!seen.has(key)) { top.push(c); seen.add(key); }
+      }
+    }
+    const subScaleMul = [0.85, 0.92, 0.96, 1.0, 1.04, 1.09, 1.18];
+    const refineHE = Math.max(120, Math.min(ref.naturalW, ref.naturalH) * ref.scale / 3);
+    const verifyEv = buildEvaluator(ref, sel, refCenter, refineHE, 512);
+    const savedSel = { cx: sel.cx, cy: sel.cy, rotation: sel.rotation, scale: sel.scale };
+    let bestVerified = null;
+    const totalVerify = top.length * subScaleMul.length;
+    let doneVerify = 0;
+    for (let i = 0; i < top.length; i++) {
+      const cand = top[i];
+      for (const mul of subScaleMul) {
+        if (autoOverlayAbort) { sel.cx = savedSel.cx; sel.cy = savedSel.cy; sel.rotation = savedSel.rotation; sel.scale = savedSel.scale; return null; }
+        doneVerify++;
+        if (doneVerify % 8 === 0) {
+          showStatus(`${statusPrefix} (verify ${doneVerify}/${totalVerify})`, 0.55 + 0.25 * doneVerify / totalVerify);
+          await sleep(0);
+        }
+        const subScale = cand.scale * mul;
+        sel.cx = savedSel.cx; sel.cy = savedSel.cy; sel.rotation = savedSel.rotation; sel.scale = savedSel.scale;
+        applyTransformToLayer(sel, refCenter, cand.rotDeg * Math.PI / 180, subScale, 0, 0);
+        const v = verifyEv.eval(0, 1);
+        if (!bestVerified || v.score > bestVerified.verifyScore) {
+          bestVerified = {
+            rotDeg: cand.rotDeg,
+            scale: subScale,
+            dxW: v.dx / verifyEv.ppu,
+            dyW: v.dy / verifyEv.ppu,
+            verifyScore: v.score,
+          };
+        }
+      }
+    }
+    sel.cx = savedSel.cx; sel.cy = savedSel.cy; sel.rotation = savedSel.rotation; sel.scale = savedSel.scale;
+    if (bestVerified) {
+      // Express dx/dy back in broad-buffer pixels (ev.ppu) so the parabolic
+      // fit + sub-pixel steps that follow are consistent.
+      best = {
+        rotDeg: bestVerified.rotDeg,
+        scale: bestVerified.scale,
+        dx: bestVerified.dxW * ev.ppu,
+        dy: bestVerified.dyW * ev.ppu,
+        score: bestVerified.verifyScore,
+      };
+    }
+  }
+
+  // Parabolic fit on rotation & scale (5 extra evals)
+  const drProbe = mode === 'broad' ? 1.0 : 0.04;
+  const dsProbe = mode === 'broad' ? 0.01 : 0.001;
+  const sC = ev.eval(best.rotDeg, best.scale).score;
+  const sRm = ev.eval(best.rotDeg - drProbe, best.scale).score;
+  const sRp = ev.eval(best.rotDeg + drProbe, best.scale).score;
+  const sSm = ev.eval(best.rotDeg, best.scale * (1 - dsProbe)).score;
+  const sSp = ev.eval(best.rotDeg, best.scale * (1 + dsProbe)).score;
+  let subRot = 0, subScale = 0;
+  const dnR = 2 * (sRm + sRp - 2 * sC);
+  const dnS = 2 * (sSm + sSp - 2 * sC);
+  if (Math.abs(dnR) > 1e-9) {
+    const o = (sRm - sRp) / dnR;
+    if (o > -1.5 && o < 1.5) subRot = o * drProbe;
+  }
+  if (Math.abs(dnS) > 1e-9) {
+    const o = (sSm - sSp) / dnS;
+    if (o > -1.5 && o < 1.5) subScale = o * dsProbe * best.scale;
+  }
+
+  // Sub-pixel translation at the parabolically-refined rot/scale
+  showStatus(`${statusPrefix} (sub-pixel)`, 0.85);
+  await sleep(0);
+  if (autoOverlayAbort) return null;
+  const subRotDeg = best.rotDeg + subRot;
+  const subScl = best.scale + subScale;
+  const sub = ev.evalSubpixel(subRotDeg, subScl);
+  if (sub.score >= best.score - 0.01) best = sub;
+  else best = { ...best, rotDeg: subRotDeg, scale: subScl };
+
+  // Apply
+  const before = { cx: sel.cx, cy: sel.cy, rotation: sel.rotation, scale: sel.scale };
+  applyTransformToLayer(sel, refCenter,
+    best.rotDeg * Math.PI / 180,
+    best.scale,
+    best.dx / ev.ppu,
+    best.dy / ev.ppu);
+  return {
+    best,
+    ppu: ev.ppu,
+    refCenter,
+    halfExtent,
+    ev,
+    score: best.score,
+    delta: {
+      cx: sel.cx - before.cx,
+      cy: sel.cy - before.cy,
+      rotDeg: (sel.rotation - before.rotation) * 180 / Math.PI,
+      scaleRel: sel.scale / before.scale,
+    },
+  };
+}
+
+// Opportunistic snap check: try rounding the current layer state to common
+// "nice" values (0/1°, integer pixels, scale 1.0, integer scale·100). For
+// each variant, render the moving buffer with the snapped sel and re-score
+// at zero shift; keep whichever variant scores highest. Cheap (~10 renders
+// at SIZE=512) and reliably catches the true optimum when it sits on a
+// clean architectural number.
+async function snapCheck(ref, sel, refCenter, halfExtent) {
+  if (autoOverlayAbort) return;
+  const size = 512;
+  const ev = buildEvaluator(ref, sel, refCenter, halfExtent, size);
+  const saved = { cx: sel.cx, cy: sel.cy, rotation: sel.rotation, scale: sel.scale };
+  const baseScore = ev.eval(0, 1).score;
+
+  const rotDeg = saved.rotation * 180 / Math.PI;
+  const round = (v, step) => Math.round(v / step) * step;
+
+  // Find the nearest cardinal rotation (0°, ±90°, ±180°, ±270°) that's
+  // within 15° of the current rotation. Architects regularly rotate plans
+  // by exactly 90° to reorient portrait/landscape, so these are worth
+  // snapping to when nearby.
+  let nearestCardinalDeg = null;
+  for (const cardinal of [0, 90, -90, 180, -180, 270, -270]) {
+    if (Math.abs(rotDeg - cardinal) < 15) { nearestCardinalDeg = cardinal; break; }
+  }
+
+  const tries = [
+    { cx: Math.round(saved.cx), cy: Math.round(saved.cy), rotation: saved.rotation, scale: saved.scale },
+    { cx: saved.cx, cy: saved.cy, rotation: round(rotDeg, 0.1) * Math.PI / 180, scale: saved.scale },
+    { cx: saved.cx, cy: saved.cy, rotation: round(rotDeg, 0.5) * Math.PI / 180, scale: saved.scale },
+    { cx: saved.cx, cy: saved.cy, rotation: 0, scale: saved.scale },
+    { cx: saved.cx, cy: saved.cy, rotation: saved.rotation, scale: round(saved.scale, 0.001) },
+    { cx: saved.cx, cy: saved.cy, rotation: saved.rotation, scale: round(saved.scale, 0.01) },
+    { cx: saved.cx, cy: saved.cy, rotation: saved.rotation, scale: 1 },
+    { cx: Math.round(saved.cx), cy: Math.round(saved.cy), rotation: round(rotDeg, 0.1) * Math.PI / 180, scale: round(saved.scale, 0.001) },
+    { cx: 0, cy: 0, rotation: 0, scale: 1 },
+  ];
+  // Add a cardinal-rotation snap if we're close to ±90/180/270 — common
+  // when re-orienting a portrait crop to a landscape source.
+  if (nearestCardinalDeg !== null && nearestCardinalDeg !== 0) {
+    tries.push({ cx: saved.cx, cy: saved.cy, rotation: nearestCardinalDeg * Math.PI / 180, scale: saved.scale });
+  }
+
+  let bestScore = baseScore;
+  let bestState = saved;
+  for (const cand of tries) {
+    if (autoOverlayAbort) break;
+    sel.cx = cand.cx; sel.cy = cand.cy;
+    sel.rotation = cand.rotation; sel.scale = cand.scale;
+    const sc = ev.eval(0, 1).score;
+    if (sc > bestScore + 1e-5) {
+      bestScore = sc;
+      bestState = cand;
+    }
+  }
+  sel.cx = bestState.cx; sel.cy = bestState.cy;
+  sel.rotation = bestState.rotation; sel.scale = bestState.scale;
+}
+
+async function autoOverlay() {
+  const sel = currentLayer();
+  if (!sel) return;
+  const selIdx = state.layers.findIndex(l => l.id === sel.id);
+  const refIdx = selIdx - 1 >= 0 ? selIdx - 1 : (state.layers.length > 1 ? state.layers.findIndex(l => l.id !== sel.id) : -1);
+  if (refIdx < 0) return;
+  const ref = state.layers[refIdx];
+
+  autoOverlayAbort = false;
+  $('status-stop').style.display = '';
+
+  const MAX_PASSES = 10;
+  let firstScore = null;
+  let lastResult = null;
+  let prevScore = -Infinity;
+  let stagnantPasses = 0;
+
+  for (let pass = 1; pass <= MAX_PASSES; pass++) {
+    if (autoOverlayAbort) break;
+    const mode = pass === 1 ? 'broad' : 'refine';
+    const prefix = `Auto-overlay pass ${pass}/${MAX_PASSES}`;
+    showStatus(prefix, (pass - 1) / MAX_PASSES);
+    const r = await autoOverlayPass(ref, sel, mode, prefix);
+    if (autoOverlayAbort) break;
+    if (!r) break;
+    if (firstScore === null) firstScore = r.score;
+    lastResult = r;
+    render();
+
+    // Snap-rounded probe between passes — opportunistically catches "clean"
+    // optima the FFT landscape's noise floor would otherwise hide.
+    showStatus(`${prefix} (snap probe)`, (pass - 0.2) / MAX_PASSES);
+    await sleep(0);
+    if (autoOverlayAbort) break;
+    await snapCheck(ref, sel, r.refCenter, r.halfExtent);
+    render();
+    syncPropsInputs();
+
+    // Convergence: stop early when either (a) the per-pass deltas are tiny,
+    // or (b) the score isn't meaningfully improving anymore. The second
+    // criterion catches the case where the algorithm is bouncing within a
+    // small basin without ever quite hitting the convergence thresholds.
+    if (pass >= 2) {
+      const d = r.delta;
+      const tinyMove = Math.abs(d.cx) < 0.15 && Math.abs(d.cy) < 0.15;
+      const tinyRot = Math.abs(d.rotDeg) < 0.005;
+      const tinyScale = Math.abs(d.scaleRel - 1) < 5e-5;
+      if (tinyMove && tinyRot && tinyScale) break;
+      if (r.score < prevScore + 0.00005) stagnantPasses++;
+      else stagnantPasses = 0;
+      if (stagnantPasses >= 2) break;
+    }
+    prevScore = r.score;
+  }
+
+  $('status-stop').style.display = 'none';
+  hideStatus();
+  if (lastResult) {
+    window._lastAutoOverlay = { best: lastResult.best };
+  }
+
+  // Only warn if the FINAL score is still poor after all the refinement
+  // passes — a low first-pass score is fine if iteration recovers it
+  // (common when most pixels are hidden by color filters).
+  const finalScore = lastResult?.score ?? -Infinity;
+  if (finalScore < 0.25 && !autoOverlayAbort) {
+    alert(`Auto-overlay couldn't find a confident alignment (final score ${finalScore.toFixed(2)}). The layers may not share enough visible structure — try unhiding more colors.`);
+  }
+
+  renderProps();
+  syncPropsInputs();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+$('btn-auto-overlay').addEventListener('click', () => {
+  autoOverlay().catch(err => {
+    console.error(err);
+    hideStatus();
+    $('status-stop').style.display = 'none';
+    alert('Auto-overlay failed: ' + err.message);
+  });
+});
+
+$('status-stop').addEventListener('click', () => {
+  autoOverlayAbort = true;
+  $('status-text').textContent = 'Stopping...';
+});
+
+// ===== Canvas background controls =====
+function setBackgroundMode(mode) {
+  state.backgroundMode = mode;
+  document.querySelectorAll('.canvas-bg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.bg === mode);
+  });
+  render();
+}
+
+document.querySelectorAll('.canvas-bg-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    // The custom-color swatch holds the native picker as an absolutely-
+    // positioned input; clicking the button forwards to the picker via
+    // the input's own click. Just set the mode and let the input's
+    // change event update the color.
+    setBackgroundMode(btn.dataset.bg);
+  });
+});
+
+$('bg-custom-input').addEventListener('input', e => {
+  state.backgroundCustom = e.target.value;
+  const customBtn = document.querySelector('.canvas-bg-btn.custom');
+  if (customBtn) customBtn.style.background = e.target.value;
+  if (state.backgroundMode === 'custom') render();
+});
+
+$('bg-custom-input').addEventListener('change', e => {
+  // Also switch to custom mode if the user picked a color while another
+  // mode was active — the picker click is interpreted as choosing custom.
+  setBackgroundMode('custom');
+});
+
+// ===== Initial setup =====
+resizeCanvas();
+renderLayersList();
+renderProps();
+updateToolbar();
+
+// Expose for testing
+window._state = state;
+window._addFiles = addFiles;
+window._buildEvaluator = buildEvaluator;
+window._renderLayerToGrayBuffer = renderLayerToGrayBuffer;
+window._sobelEdges = sobelEdges;
+window._alignmentScore = alignmentScore;
+window._phaseCorrelation = phaseCorrelation;
+window._applyHannAndFFT = applyHannAndFFT;
+</script>
+</body>
+</html>

@@ -15,6 +15,7 @@ A collection of frontend-only HTML5 utilities. Everything runs in the browser â€
 | Tool | Description |
 |------|-------------|
 | [Slideshow](media/slideshow/) | Drop images, PDFs, or folders to create a full-screen slideshow. Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. |
+| [Overlay](media/overlay/) | Stack images and PDF plans, drag/rotate/scale them, and hide colors you don't want to see. Auto-overlay aligns layers for you. |
 
 ### Board Games
 
