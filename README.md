@@ -16,6 +16,7 @@ A collection of frontend-only HTML5 utilities. Everything runs in the browser â€
 |------|-------------|
 | [Slideshow](media/slideshow/) | Drop images, PDFs, or folders to create a full-screen slideshow. Supports JPG, PNG, GIF, WebP, SVG, BMP, and PDF. |
 | [Overlay](media/overlay/) | Stack images and PDF plans, drag/rotate/scale them, and hide colors you don't want to see. Auto-overlay aligns layers for you. |
+| [Visual diff](media/visualdiff/) | Side-by-side diff for two PDFs (or images, treated as single-page PDFs). Matches pages across documents, highlights text changes from extracted PDF text, and flags purely visual differences (e.g. architectural drawings). |
 
 ### Board Games
 

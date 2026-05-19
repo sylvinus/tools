@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visual diff</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+a { color: #79b8ff; }
+button { font: inherit; }
+
+header {
+  padding: 1rem 1.5rem .75rem;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .15rem;
+}
+
+header h1 { font-size: 1.25rem; font-weight: 600; }
+
+/* Top toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar .spacer { flex: 1; }
+.toolbar .sep { width: 1px; height: 1.2rem; background: #30363d; }
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  cursor: pointer;
+  user-select: none;
+  padding: 0 .25rem;
+}
+
+.checkbox-group input { accent-color: #58a6ff; }
+
+.summary {
+  font-size: .8rem;
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.summary .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: .75rem;
+}
+
+.pill .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.pill.removed { background: rgba(248,81,73,.15); color: #ff8b80; }
+.pill.removed .swatch { background: #ff5a52; }
+.pill.added { background: rgba(46,160,67,.15); color: #7ee787; }
+.pill.added .swatch { background: #3fb950; }
+.pill.visual { background: rgba(229,192,123,.15); color: #ffd866; }
+.pill.visual .swatch { background: #e5c07b; }
+.pill.same { background: rgba(110,118,129,.15); color: #8b949e; }
+
+/* Workspace */
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+aside.pages-nav {
+  background: #161b22;
+  border-right: 1px solid #21262d;
+  width: 210px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  padding: .65rem .85rem;
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #8b949e;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+.pages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .35rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.page-link {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .55rem;
+  border-radius: 6px;
+  background: #0d1117;
+  border: 1px solid #21262d;
+  cursor: pointer;
+  font-size: .8rem;
+  color: #c9d1d9;
+  transition: border-color .15s, background .15s;
+  text-align: left;
+}
+
+.page-link:hover { background: #1c2230; }
+.page-link.active { border-color: #58a6ff; background: #1c2230; }
+
+.page-link-num {
+  color: #8b949e;
+  min-width: 32px;
+  font-variant-numeric: tabular-nums;
+  font-size: .75rem;
+}
+
+.page-link-info { flex: 1; overflow: hidden; }
+
+.page-link-marker {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.marker-same { background: rgba(110,118,129,.2); color: #8b949e; }
+.marker-text { background: rgba(255,166,87,.2); color: #ffa657; }
+.marker-visual { background: rgba(229,192,123,.2); color: #ffd866; }
+.marker-both { background: rgba(248,81,73,.2); color: #ff8b80; }
+.marker-added { background: rgba(46,160,67,.2); color: #7ee787; }
+.marker-removed { background: rgba(248,81,73,.2); color: #ff8b80; }
+
+/* Content area */
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #0f1117;
+  overflow: hidden;
+}
+
+.column-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: .5rem 1rem;
+  border-bottom: 1px solid #21262d;
+  background: #161b22;
+  flex-shrink: 0;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  overflow: hidden;
+  font-size: .8rem;
+}
+
+.column-header .side-letter {
+  font-weight: 700;
+  color: #8b949e;
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .7rem;
+}
+
+.column-header .file-name {
+  color: #c9d1d9;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-header .meta {
+  color: #8b949e;
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+
+.diff-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.pair-row {
+  display: flex;
+  flex-direction: column;
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  scroll-margin-top: 1rem;
+}
+
+.pair-row.status-text,
+.pair-row.status-visual,
+.pair-row.status-both { border-color: rgba(229,192,123,.4); }
+.pair-row.status-added { border-color: rgba(46,160,67,.45); }
+.pair-row.status-removed { border-color: rgba(248,81,73,.45); }
+
+.pair-header {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .5rem .85rem;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  cursor: pointer;
+  user-select: none;
+  font-size: .82rem;
+}
+
+.pair-row.collapsed .pair-header { border-bottom: none; }
+
+.pair-header .arrow {
+  display: inline-block;
+  width: .7rem;
+  font-size: .6rem;
+  color: #8b949e;
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+
+.pair-row.collapsed .pair-header .arrow { transform: rotate(-90deg); }
+
+.pair-header .pair-label { font-weight: 600; color: #c9d1d9; }
+.pair-header .pair-sub { color: #8b949e; font-size: .75rem; }
+.pair-header .spacer { flex: 1; }
+
+.pair-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.pair-row.collapsed .pair-body,
+.pair-row.collapsed .pair-text-changes { display: none; }
+
+.pair-text-changes {
+  padding: .65rem 1rem .9rem;
+  border-top: 1px solid #21262d;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  background: #0d1117;
+}
+
+.pair-text-changes-title {
+  color: #8b949e;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+  margin-bottom: .25rem;
+}
+
+.diff-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.diff-line {
+  display: flex;
+  gap: .55rem;
+  align-items: flex-start;
+  padding: 3px 8px;
+  border-radius: 4px;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.diff-line.removed {
+  background: rgba(248,81,73,.09);
+  color: #ffb1ac;
+}
+
+.diff-line.added {
+  background: rgba(46,160,67,.09);
+  color: #aedfb6;
+}
+
+.diff-line .diff-marker {
+  flex: none;
+  font-weight: 700;
+  opacity: .75;
+  width: .8rem;
+}
+
+.page-cell {
+  position: relative;
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-cell.added { border-color: rgba(46,160,67,.5); }
+.page-cell.removed { border-color: rgba(248,81,73,.5); }
+.page-cell.changed { border-color: rgba(229,192,123,.4); }
+
+.page-cell-label {
+  padding: .3rem .6rem;
+  font-size: .72rem;
+  background: #0d1117;
+  color: #8b949e;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+.page-cell-label .info { display: flex; align-items: center; gap: .5rem; overflow: hidden; }
+
+.page-cell-canvas-wrap {
+  position: relative;
+  background: #fff;
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 60px;
+}
+
+.page-cell-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.page-cell-canvas-wrap .overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.page-cell-empty {
+  flex: 1;
+  background: repeating-linear-gradient(45deg, #1c2026 0 12px, #161a20 12px 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: #6e7681;
+  font-size: .9rem;
+  font-style: italic;
+}
+
+.page-cell-empty.added { color: #7ee787; }
+.page-cell-empty.removed { color: #ff8b80; }
+
+/* Drop zones (initial state) */
+.drop-zones {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1.5rem;
+  min-height: 0;
+}
+
+.drop-zones.hidden { display: none; }
+
+.drop-zone {
+  background: #161b22;
+  border: 2px dashed #30363d;
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  position: relative;
+  overflow: hidden;
+  gap: .35rem;
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: #58a6ff;
+  background: #1c2230;
+}
+
+.drop-zone.loaded {
+  border-style: solid;
+  border-color: #2ea043;
+  background: #1c2230;
+}
+
+.drop-zone strong {
+  font-size: 1rem;
+  color: #c9d1d9;
+  font-weight: 600;
+}
+
+.drop-zone p {
+  color: #8b949e;
+  font-size: .85rem;
+}
+
+.drop-zone .filename {
+  color: #79b8ff;
+  font-size: .9rem;
+  margin-top: .35rem;
+  word-break: break-all;
+  max-width: 100%;
+}
+
+.drop-zone .pagecount {
+  color: #8b949e;
+  font-size: .8rem;
+}
+
+.drop-zone .change-btn {
+  margin-top: .5rem;
+}
+
+.drop-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drop-zone.loaded input[type="file"] { display: none; }
+
+.drop-zone .side-tag {
+  position: absolute;
+  top: .55rem;
+  left: .75rem;
+  font-size: .7rem;
+  color: #8b949e;
+  background: #0d1117;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid #21262d;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+
+.drop-zone.loaded .side-tag {
+  color: #7ee787;
+  border-color: rgba(46,160,67,.4);
+}
+
+/* Status banner */
+.status-banner {
+  position: fixed;
+  left: 50%;
+  top: 1.1rem;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .6rem 1rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  box-shadow: 0 6px 20px rgba(0,0,0,.6);
+  display: none;
+  z-index: 200;
+  min-width: 320px;
+}
+
+.status-banner.visible { display: block; }
+
+.status-banner .progress {
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+
+.status-banner .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  width: 0;
+  transition: width .2s;
+}
+
+/* Drop overlay (when dragging onto the whole page after both files loaded) */
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(15, 17, 23, .85);
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed #58a6ff;
+  pointer-events: none;
+}
+
+.drop-overlay.visible { display: flex; }
+
+.drop-overlay span {
+  color: #58a6ff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Visual diff</h1>
+</header>
+
+<div class="toolbar">
+  <button class="icon-btn" id="btn-swap" disabled title="Swap A and B">
+    <svg viewBox="0 0 16 16"><path d="M3 5h9l-2-2M13 11H4l2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Swap
+  </button>
+  <button class="icon-btn" id="btn-clear" disabled>
+    <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" fill="none"/></svg>
+    Clear
+  </button>
+  <div class="sep"></div>
+  <label class="checkbox-group">
+    <input type="checkbox" id="opt-text" checked> Text diff
+  </label>
+  <label class="checkbox-group">
+    <input type="checkbox" id="opt-visual" checked> Visual diff
+  </label>
+  <div class="spacer"></div>
+  <div class="summary" id="diff-summary"></div>
+</div>
+
+<div class="workspace" id="workspace">
+
+  <!-- Initial state: two drop zones -->
+  <div class="drop-zones" id="drop-zones">
+    <div class="drop-zone" id="drop-a" data-side="a">
+      <span class="side-tag">A · ORIGINAL</span>
+      <strong>Drop the original here</strong>
+      <p>PDF or image (JPG, PNG, GIF, WebP, SVG, BMP). All local, nothing uploaded.</p>
+      <div class="filename" id="filename-a" style="display:none"></div>
+      <div class="pagecount" id="pagecount-a" style="display:none"></div>
+      <input type="file" id="file-a" accept="image/*,.pdf,application/pdf">
+    </div>
+    <div class="drop-zone" id="drop-b" data-side="b">
+      <span class="side-tag">B · REVISED</span>
+      <strong>Drop the revised here</strong>
+      <p>PDF or image (JPG, PNG, GIF, WebP, SVG, BMP). All local, nothing uploaded.</p>
+      <div class="filename" id="filename-b" style="display:none"></div>
+      <div class="pagecount" id="pagecount-b" style="display:none"></div>
+      <input type="file" id="file-b" accept="image/*,.pdf,application/pdf">
+    </div>
+  </div>
+
+  <!-- Active diff view (injected when both files are loaded) -->
+  <aside class="pages-nav" id="pages-nav" style="display:none">
+    <div class="panel-title">Pages</div>
+    <div class="pages-list" id="pages-list"></div>
+  </aside>
+
+  <div class="content-area" id="content-area" style="display:none">
+    <div class="column-headers">
+      <div class="column-header">
+        <span class="side-letter">A</span>
+        <span class="file-name" id="header-name-a"></span>
+        <span class="meta" id="header-meta-a"></span>
+      </div>
+      <div class="column-header">
+        <span class="side-letter">B</span>
+        <span class="file-name" id="header-name-b"></span>
+        <span class="meta" id="header-meta-b"></span>
+      </div>
+    </div>
+    <div class="diff-scroller" id="diff-scroller"></div>
+  </div>
+
+</div>
+
+<div class="status-banner" id="status-banner">
+  <span id="status-text">Working...</span>
+  <div class="progress"><div class="progress-fill" id="status-progress"></div></div>
+</div>
+
+<div class="drop-overlay" id="drop-overlay"><span>Drop to replace A or B</span></div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+// ===== State =====
+const state = {
+  files: { a: null, b: null },
+  pages: { a: [], b: [] },     // each page: { name, pageNumber, canvas, imageData, words, hash, width, height }
+  alignment: [],               // [{ type: 'match'|'added'|'removed', a?, b?, sim? }]
+  diffData: [],                // per-pair precomputed diff (status, masks, confirmed word ops)
+  rowsByPage: new Map(),       // pageId -> row element for scroll/highlight
+};
+
+// ===== PDF.js =====
+let pdfjsLib = null;
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+// ===== Status =====
+function showStatus(text, progress) {
+  $('status-banner').classList.add('visible');
+  $('status-text').textContent = text;
+  $('status-progress').style.width = `${(progress || 0) * 100}%`;
+}
+function hideStatus() {
+  $('status-banner').classList.remove('visible');
+  $('status-progress').style.width = '0%';
+}
+
+// ===== File loading =====
+const RENDER_SCALE = 1.5;
+const IMAGE_PATTERN = /\.(svg|bmp|gif|webp|png|jpe?g)$/i;
+
+async function loadFile(file, sideLabel) {
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (isPdf) return await loadPdf(file, sideLabel);
+  return await loadImage(file);
+}
+
+async function loadPdf(file, sideLabel) {
+  const lib = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await lib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    showStatus(`Rendering ${sideLabel} (${file.name}) — page ${i} / ${pdf.numPages}`, (i - 1) / pdf.numPages);
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: RENDER_SCALE });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const textContent = await page.getTextContent();
+    const words = extractWords(textContent, viewport);
+    pages.push({
+      name: `Page ${i}`,
+      pageNumber: i,
+      canvas,
+      imageData,
+      words,
+      hash: visualHash(canvas),
+      width: canvas.width,
+      height: canvas.height,
+    });
+  }
+  return pages;
+}
+
+async function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return [{
+      name: 'Image',
+      pageNumber: 1,
+      canvas,
+      imageData,
+      words: [],
+      hash: visualHash(canvas),
+      width: canvas.width,
+      height: canvas.height,
+    }];
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Split a PDF text item into space-separated words with viewport-pixel bboxes.
+// Pure-punctuation tokens are dropped: comparing them as "words" produces lots
+// of false-positive diffs (e.g. ":", "/", "•" appearing identically on both
+// sides but never matching because the normalizer collapses them to "").
+function extractWords(textContent, viewport) {
+  const words = [];
+  for (const item of textContent.items) {
+    if (!item.str) continue;
+    const m = pdfjsLib.Util.transform(viewport.transform, item.transform);
+    // For non-rotated text, m[5] is the baseline y in canvas pixels.
+    const fontHeight = Math.hypot(m[2], m[3]) || 1;
+    const fullWidth = (item.width || 0) * viewport.scale;
+    const baselineX = m[4];
+    const baselineY = m[5];
+    // Approximate top of glyphs (canvas y grows downward; glyphs rise above baseline).
+    const top = baselineY - fontHeight;
+    const text = item.str;
+    if (!text.length) continue;
+    // Distribute width by character count across the run.
+    const parts = text.split(/(\s+)/);
+    let cx = 0;
+    const totalChars = text.length;
+    for (const part of parts) {
+      const partW = (part.length / totalChars) * fullWidth;
+      const norm = normalizeWord(part);
+      if (part.trim() && norm) {
+        words.push({
+          text: norm,
+          raw: part,
+          x: baselineX + cx,
+          y: top,
+          width: Math.max(partW, 1),
+          height: fontHeight * 1.15,
+        });
+      }
+      cx += partW;
+    }
+  }
+  return words;
+}
+
+function normalizeWord(w) {
+  const lower = w.toLowerCase();
+  // Require at least one letter or digit — otherwise it's pure punctuation.
+  if (!/[\p{L}\p{N}]/u.test(lower)) return '';
+  return lower.replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+// ===== Page signatures =====
+
+function visualHash(canvas) {
+  const tmp = document.createElement('canvas');
+  tmp.width = 16;
+  tmp.height = 16;
+  const ctx = tmp.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, 16, 16);
+  ctx.drawImage(canvas, 0, 0, 16, 16);
+  const data = ctx.getImageData(0, 0, 16, 16).data;
+  const grays = new Float32Array(256);
+  for (let i = 0, k = 0; i < data.length; i += 4, k++) {
+    grays[k] = (data[i] + data[i + 1] + data[i + 2]) / 3;
+  }
+  return grays;
+}
+
+function visualSim(a, b) {
+  let totalDiff = 0;
+  for (let i = 0; i < a.length; i++) totalDiff += Math.abs(a[i] - b[i]);
+  return 1 - Math.min(1, totalDiff / (a.length * 255));
+}
+
+function textSim(wordsA, wordsB) {
+  const filterA = wordsA.map(w => w.text).filter(Boolean);
+  const filterB = wordsB.map(w => w.text).filter(Boolean);
+  if (!filterA.length && !filterB.length) return null;
+  const setA = new Set(filterA);
+  const setB = new Set(filterB);
+  let inter = 0;
+  for (const w of setA) if (setB.has(w)) inter++;
+  const union = setA.size + setB.size - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+function pageSim(a, b) {
+  const t = textSim(a.words, b.words);
+  const v = visualSim(a.hash, b.hash);
+  if (t === null) return v;
+  return 0.6 * t + 0.4 * v;
+}
+
+// ===== Page alignment (DP) =====
+function alignPages(pagesA, pagesB) {
+  const M = pagesA.length, N = pagesB.length;
+  if (M === 0 && N === 0) return [];
+  // Score: matching pair contributes sim if above threshold; gaps contribute 0.
+  const MIN_MATCH = 0.25;
+  const sim = [];
+  for (let i = 0; i < M; i++) {
+    const row = new Array(N);
+    for (let j = 0; j < N; j++) row[j] = pageSim(pagesA[i], pagesB[j]);
+    sim.push(row);
+  }
+  // Use plain Array (Number, Float64) — Float32Array rounding broke the
+  // strict-equality checks during backtracking.
+  const dp = [];
+  const choice = []; // 0=match, 1=removed (gap on B), 2=added (gap on A)
+  for (let i = 0; i <= M; i++) {
+    dp.push(new Array(N + 1).fill(0));
+    choice.push(new Int8Array(N + 1));
+  }
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      const s = sim[i - 1][j - 1];
+      const m = s >= MIN_MATCH ? dp[i - 1][j - 1] + s : -Infinity;
+      const up = dp[i - 1][j];
+      const lf = dp[i][j - 1];
+      if (m >= up && m >= lf && m > -Infinity) {
+        dp[i][j] = m; choice[i][j] = 0;
+      } else if (up >= lf) {
+        dp[i][j] = up; choice[i][j] = 1;
+      } else {
+        dp[i][j] = lf; choice[i][j] = 2;
+      }
+    }
+  }
+  const ops = [];
+  let i = M, j = N;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && choice[i][j] === 0) {
+      ops.push({ type: 'match', a: i - 1, b: j - 1, sim: sim[i - 1][j - 1] });
+      i--; j--;
+    } else if (i > 0 && (j === 0 || choice[i][j] === 1)) {
+      ops.push({ type: 'removed', a: i - 1 });
+      i--;
+    } else if (j > 0) {
+      ops.push({ type: 'added', b: j - 1 });
+      j--;
+    } else {
+      break;
+    }
+  }
+  ops.reverse();
+  return ops;
+}
+
+// ===== Word-level diff (LCS) =====
+function diffWords(a, b) {
+  const M = a.length, N = b.length;
+  const CAP = 2500;
+  if (M > CAP || N > CAP) return null;
+  const dp = [];
+  for (let i = 0; i <= M; i++) dp.push(new Int32Array(N + 1));
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      if (a[i - 1].text && a[i - 1].text === b[j - 1].text) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = dp[i - 1][j] >= dp[i][j - 1] ? dp[i - 1][j] : dp[i][j - 1];
+      }
+    }
+  }
+  const ops = [];
+  let i = M, j = N;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1].text && a[i - 1].text === b[j - 1].text) {
+      ops.push({ type: 'same', a: i - 1, b: j - 1 });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.push({ type: 'added', b: j - 1 });
+      j--;
+    } else if (i > 0) {
+      ops.push({ type: 'removed', a: i - 1 });
+      i--;
+    } else {
+      break;
+    }
+  }
+  ops.reverse();
+  return ops;
+}
+
+// ===== Visual diff (pixel-based, with text mask) =====
+
+// Returns { rawMask, visualMask, w, h }. Returns null if dimensions differ.
+// - rawMask: every pixel where the two pages differ (denoised once to drop
+//   single-pixel noise from antialiasing). Used to confirm text changes — a
+//   diff'd "word" should overlap some real pixel difference.
+// - visualMask: rawMask minus text-bboxes (with padding) and dilated for
+//   visibility. This is what's drawn as the orange overlay.
+function computeVisualDiff(pageA, pageB) {
+  const w = pageA.width;
+  const h = pageA.height;
+  if (pageB.width !== w || pageB.height !== h) return null;
+  const da = pageA.imageData.data;
+  const db = pageB.imageData.data;
+  const raw = new Uint8Array(w * h);
+  const THRESH = 32;
+  for (let p = 0, q = 0; p < da.length; p += 4, q++) {
+    if (Math.abs(da[p] - db[p]) > THRESH
+      || Math.abs(da[p + 1] - db[p + 1]) > THRESH
+      || Math.abs(da[p + 2] - db[p + 2]) > THRESH) {
+      raw[q] = 1;
+    }
+  }
+  const rawMask = openMask(raw, w, h);
+  // For the visual overlay: subtract text-bboxes (so font-rendering jitter
+  // doesn't show up) and dilate so the remaining regions read as shapes.
+  const masked = new Uint8Array(rawMask);
+  const pad = Math.max(3, Math.round(RENDER_SCALE * 2));
+  maskOutWords(masked, w, h, pageA.words, pad);
+  maskOutWords(masked, w, h, pageB.words, pad);
+  const visualMask = dilate(masked, w, h, 2);
+  return { rawMask, visualMask, w, h };
+}
+
+// True if at least `minPx` pixels of `mask` fall inside the word's bbox.
+function bboxHasMaskPixels(mask, w, h, word, minPx) {
+  const x0 = Math.max(0, Math.floor(word.x));
+  const x1 = Math.min(w, Math.ceil(word.x + word.width));
+  const y0 = Math.max(0, Math.floor(word.y));
+  const y1 = Math.min(h, Math.ceil(word.y + word.height));
+  let count = 0;
+  for (let y = y0; y < y1; y++) {
+    const rs = y * w;
+    for (let x = x0; x < x1; x++) {
+      if (mask[rs + x]) {
+        count++;
+        if (count >= minPx) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function maskOutWords(mask, w, h, words, pad) {
+  for (const word of words) {
+    const x0 = Math.max(0, Math.floor(word.x - pad));
+    const x1 = Math.min(w, Math.ceil(word.x + word.width + pad));
+    const y0 = Math.max(0, Math.floor(word.y - pad));
+    const y1 = Math.min(h, Math.ceil(word.y + word.height + pad));
+    for (let y = y0; y < y1; y++) {
+      const rs = y * w;
+      for (let x = x0; x < x1; x++) mask[rs + x] = 0;
+    }
+  }
+}
+
+// Erode (require all 4-neighbours set) then dilate by 1: drops single-pixel
+// noise while preserving any real region of size >= 3 pixels.
+function openMask(mask, w, h) {
+  const eroded = new Uint8Array(mask.length);
+  for (let y = 1; y < h - 1; y++) {
+    const rs = y * w;
+    for (let x = 1; x < w - 1; x++) {
+      const idx = rs + x;
+      if (!mask[idx]) continue;
+      if (mask[idx - 1] && mask[idx + 1] && mask[idx - w] && mask[idx + w]) {
+        eroded[idx] = 1;
+      }
+    }
+  }
+  return dilate(eroded, w, h, 1);
+}
+
+function dilate(mask, w, h, radius) {
+  if (radius <= 0) return mask;
+  const out = new Uint8Array(mask.length);
+  for (let y = 0; y < h; y++) {
+    const rs = y * w;
+    for (let x = 0; x < w; x++) {
+      if (!mask[rs + x]) continue;
+      const x0 = Math.max(0, x - radius);
+      const x1 = Math.min(w - 1, x + radius);
+      const y0 = Math.max(0, y - radius);
+      const y1 = Math.min(h - 1, y + radius);
+      for (let yy = y0; yy <= y1; yy++) {
+        const rs2 = yy * w;
+        for (let xx = x0; xx <= x1; xx++) out[rs2 + xx] = 1;
+      }
+    }
+  }
+  return out;
+}
+
+function countMask(mask) {
+  let c = 0;
+  for (let i = 0; i < mask.length; i++) if (mask[i]) c++;
+  return c;
+}
+
+// ===== Drop-zone UI =====
+function setupDropZone(side) {
+  const zone = $(`drop-${side}`);
+  const input = $(`file-${side}`);
+  zone.addEventListener('click', e => {
+    if (zone.classList.contains('loaded') && e.target.tagName !== 'BUTTON') return;
+  });
+  input.addEventListener('change', () => {
+    if (input.files.length) handleFileForSide(side, input.files[0]);
+    input.value = '';
+  });
+  zone.addEventListener('dragover', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    zone.classList.add('dragover');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileForSide(side, file);
+  });
+}
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+async function handleFileForSide(side, file) {
+  try {
+    const pages = await loadFile(file, side === 'a' ? 'A' : 'B');
+    state.files[side] = file;
+    state.pages[side] = pages;
+    updateDropZoneState(side);
+    hideStatus();
+    maybeRunDiff();
+  } catch (e) {
+    console.error('Failed to load file', e);
+    hideStatus();
+    alert(`Could not load ${file.name}: ${e.message || e}`);
+  }
+}
+
+function updateDropZoneState(side) {
+  const zone = $(`drop-${side}`);
+  const file = state.files[side];
+  const pages = state.pages[side];
+  const nameEl = $(`filename-${side}`);
+  const countEl = $(`pagecount-${side}`);
+  const strongEl = zone.querySelector('strong');
+  const pEl = zone.querySelector('p');
+  if (file && pages.length) {
+    zone.classList.add('loaded');
+    nameEl.textContent = file.name;
+    nameEl.style.display = '';
+    countEl.textContent = pages.length === 1 ? '1 page' : `${pages.length} pages`;
+    countEl.style.display = '';
+    strongEl.textContent = side === 'a' ? 'Original loaded' : 'Revised loaded';
+    pEl.textContent = 'Drop a different file to replace.';
+  } else {
+    zone.classList.remove('loaded');
+    nameEl.textContent = '';
+    nameEl.style.display = 'none';
+    countEl.textContent = '';
+    countEl.style.display = 'none';
+    strongEl.textContent = side === 'a' ? 'Drop the original here' : 'Drop the revised here';
+    pEl.textContent = 'PDF or image (JPG, PNG, GIF, WebP, SVG, BMP). All local, nothing uploaded.';
+  }
+  $('btn-clear').disabled = !(state.files.a || state.files.b);
+  $('btn-swap').disabled = !(state.files.a && state.files.b);
+}
+
+function maybeRunDiff() {
+  if (state.files.a && state.files.b) {
+    runDiff();
+  } else {
+    showInitialView();
+  }
+}
+
+function showInitialView() {
+  $('drop-zones').style.display = '';
+  $('pages-nav').style.display = 'none';
+  $('content-area').style.display = 'none';
+  $('diff-summary').innerHTML = '';
+}
+
+function showDiffView() {
+  $('drop-zones').style.display = 'none';
+  $('pages-nav').style.display = '';
+  $('content-area').style.display = '';
+}
+
+// ===== Diff orchestrator =====
+
+function runDiff() {
+  showStatus('Matching pages...', 0);
+  requestAnimationFrame(async () => {
+    state.alignment = alignPages(state.pages.a, state.pages.b);
+    state.diffData = [];
+    const total = state.alignment.length;
+    for (let i = 0; i < total; i++) {
+      showStatus(`Comparing pages (${i + 1}/${total})`, i / Math.max(1, total));
+      state.diffData.push(computeDiffData(state.alignment[i]));
+      // Yield occasionally so the progress bar can paint on large docs.
+      if (i % 3 === 2) await new Promise(r => requestAnimationFrame(r));
+    }
+    renderDiffView();
+    hideStatus();
+  });
+}
+
+// Per-pair diff payload. For matched pairs: text changes are confirmed
+// against the raw pixel diff (a word change is only kept if pixels at the
+// word's bbox actually differ between the two pages — otherwise it was a
+// hidden text-layer artifact, e.g. different OCR runs over identical scans).
+function computeDiffData(op) {
+  if (op.type === 'added')   return { op, status: 'added' };
+  if (op.type === 'removed') return { op, status: 'removed' };
+
+  const pageA = state.pages.a[op.a];
+  const pageB = state.pages.b[op.b];
+  const vd = computeVisualDiff(pageA, pageB);
+  const rawMask = vd ? vd.rawMask : null;
+  const visualMask = vd ? vd.visualMask : null;
+  const visualCount = visualMask ? countMask(visualMask) : 0;
+  const hasVisualChanges = visualCount > 100;
+
+  let wordOps = diffWords(pageA.words, pageB.words);
+  let unconfirmedRemoved = 0, unconfirmedAdded = 0;
+
+  if (wordOps && rawMask) {
+    const MIN_PX = 4;
+    wordOps = wordOps.map(o => {
+      if (o.type === 'removed') {
+        const w = pageA.words[o.a];
+        if (w && !bboxHasMaskPixels(rawMask, pageA.width, pageA.height, w, MIN_PX)) {
+          unconfirmedRemoved++;
+          return { ...o, type: 'same' };
+        }
+      } else if (o.type === 'added') {
+        const w = pageB.words[o.b];
+        if (w && !bboxHasMaskPixels(rawMask, pageB.width, pageB.height, w, MIN_PX)) {
+          unconfirmedAdded++;
+          return { ...o, type: 'same' };
+        }
+      }
+      return o;
+    });
+  }
+
+  const removedCount = wordOps ? wordOps.filter(o => o.type === 'removed').length : 0;
+  const addedCount   = wordOps ? wordOps.filter(o => o.type === 'added').length   : 0;
+  const hasTextChanges = (removedCount + addedCount) > 0;
+
+  const status = hasTextChanges && hasVisualChanges ? 'both'
+    : hasTextChanges ? 'text'
+    : hasVisualChanges ? 'visual'
+    : 'same';
+
+  return {
+    op, pageA, pageB,
+    rawMask, visualMask,
+    wordOps, removedCount, addedCount,
+    unconfirmedRemoved, unconfirmedAdded,
+    hasTextChanges, hasVisualChanges,
+    status,
+  };
+}
+
+const STATUS_INFO = {
+  same:    { label: 'SAME',    marker: 'marker-same' },
+  text:    { label: 'TEXT',    marker: 'marker-text' },
+  visual:  { label: 'VISUAL',  marker: 'marker-visual' },
+  both:    { label: 'CHANGED', marker: 'marker-both' },
+  added:   { label: 'ADDED',   marker: 'marker-added' },
+  removed: { label: 'REMOVED', marker: 'marker-removed' },
+};
+
+function renderDiffView() {
+  showDiffView();
+  $('header-name-a').textContent = state.files.a.name;
+  $('header-name-b').textContent = state.files.b.name;
+  $('header-meta-a').textContent = `${state.pages.a.length} page${state.pages.a.length === 1 ? '' : 's'}`;
+  $('header-meta-b').textContent = `${state.pages.b.length} page${state.pages.b.length === 1 ? '' : 's'}`;
+
+  const scroller = $('diff-scroller');
+  const navList = $('pages-list');
+  scroller.innerHTML = '';
+  navList.innerHTML = '';
+  state.rowsByPage.clear();
+
+  let pageIdx = 0;
+  let totalTextChanges = 0;
+  let totalVisualPages = 0;
+  let totalAdded = 0;
+  let totalRemoved = 0;
+  let totalDiscarded = 0;
+  const showText = $('opt-text').checked;
+  const showVisual = $('opt-visual').checked;
+
+  for (const data of (state.diffData || [])) {
+    pageIdx++;
+    const rowId = `row-${pageIdx}`;
+    const info = STATUS_INFO[data.status];
+
+    if (data.status === 'added')   totalAdded++;
+    if (data.status === 'removed') totalRemoved++;
+    if (data.hasTextChanges)       totalTextChanges += data.removedCount + data.addedCount;
+    if (data.hasVisualChanges)     totalVisualPages++;
+    totalDiscarded += (data.unconfirmedRemoved || 0) + (data.unconfirmedAdded || 0);
+
+    const row = document.createElement('div');
+    row.className = `pair-row status-${data.status}`;
+    row.id = rowId;
+    if (data.status === 'same') row.classList.add('collapsed');
+
+    // Header bar (always visible; click to toggle collapse)
+    const header = document.createElement('div');
+    header.className = 'pair-header';
+    let labelText, subText;
+    if (data.op.type === 'match') {
+      labelText = `A p.${data.pageA.pageNumber} ↔ B p.${data.pageB.pageNumber}`;
+      const bits = [];
+      if (data.removedCount || data.addedCount) {
+        bits.push(`${data.removedCount} removed / ${data.addedCount} added words`);
+      }
+      if (data.hasVisualChanges) bits.push('visual change');
+      if (!bits.length) bits.push('identical');
+      subText = bits.join(' · ');
+    } else if (data.op.type === 'added') {
+      labelText = `B p.${state.pages.b[data.op.b].pageNumber}`;
+      subText = 'page not in A';
+    } else {
+      labelText = `A p.${state.pages.a[data.op.a].pageNumber}`;
+      subText = 'page not in B';
+    }
+    header.innerHTML = `
+      <span class="arrow">▾</span>
+      <span class="pair-label">${escapeHtml(labelText)}</span>
+      <span class="pair-sub">${escapeHtml(subText)}</span>
+      <span class="spacer"></span>
+      <span class="page-link-marker ${info.marker}">${info.label}</span>
+    `;
+    header.addEventListener('click', () => row.classList.toggle('collapsed'));
+    row.appendChild(header);
+
+    // Body: side-by-side cells
+    const body = document.createElement('div');
+    body.className = 'pair-body';
+
+    if (data.op.type === 'match') {
+      body.appendChild(makePageCell({
+        page: data.pageA, side: 'a',
+        wordOps: showText ? data.wordOps : null,
+        visualMask: showVisual ? data.visualMask : null,
+        cellClass: data.status === 'same' ? '' : 'changed',
+        labelText: `A · p.${data.pageA.pageNumber}`,
+      }));
+      body.appendChild(makePageCell({
+        page: data.pageB, side: 'b',
+        wordOps: showText ? data.wordOps : null,
+        visualMask: showVisual ? data.visualMask : null,
+        cellClass: data.status === 'same' ? '' : 'changed',
+        labelText: `B · p.${data.pageB.pageNumber}`,
+      }));
+    } else if (data.op.type === 'added') {
+      body.appendChild(makeEmptyCell('Page not in A', 'added'));
+      body.appendChild(makePageCell({
+        page: state.pages.b[data.op.b], side: 'b',
+        wordOps: null, visualMask: null,
+        cellClass: 'added',
+        labelText: `B · p.${state.pages.b[data.op.b].pageNumber}`,
+      }));
+    } else {
+      body.appendChild(makePageCell({
+        page: state.pages.a[data.op.a], side: 'a',
+        wordOps: null, visualMask: null,
+        cellClass: 'removed',
+        labelText: `A · p.${state.pages.a[data.op.a].pageNumber}`,
+      }));
+      body.appendChild(makeEmptyCell('Page not in B', 'removed'));
+    }
+    row.appendChild(body);
+
+    // Text-changes detail below the image, if there are confirmed changes
+    if (showText && data.op.type === 'match' && data.hasTextChanges) {
+      row.appendChild(makeTextChangesPanel(data));
+    }
+
+    scroller.appendChild(row);
+    state.rowsByPage.set(pageIdx, row);
+
+    // Nav link
+    let navLabel, navMarker;
+    if (data.op.type === 'match') {
+      navLabel = `A p.${data.pageA.pageNumber} ↔ B p.${data.pageB.pageNumber}`;
+    } else if (data.op.type === 'added') {
+      navLabel = `B p.${state.pages.b[data.op.b].pageNumber}`;
+    } else {
+      navLabel = `A p.${state.pages.a[data.op.a].pageNumber}`;
+    }
+    navMarker = info.label;
+    addNavLink(navList, pageIdx, navLabel, navMarker, info.marker, rowId);
+  }
+
+  const parts = [];
+  if (totalRemoved)     parts.push(`<span class="pill removed"><span class="swatch"></span>${totalRemoved} page${totalRemoved === 1 ? '' : 's'} removed</span>`);
+  if (totalAdded)       parts.push(`<span class="pill added"><span class="swatch"></span>${totalAdded} page${totalAdded === 1 ? '' : 's'} added</span>`);
+  if (totalTextChanges) parts.push(`<span class="pill removed"><span class="swatch"></span>${totalTextChanges} text change${totalTextChanges === 1 ? '' : 's'}</span>`);
+  if (totalVisualPages) parts.push(`<span class="pill visual"><span class="swatch"></span>${totalVisualPages} page${totalVisualPages === 1 ? '' : 's'} with visual changes</span>`);
+  if (!parts.length)    parts.push(`<span class="pill same">No differences</span>`);
+  if (totalDiscarded)   parts.push(`<span class="pill same" title="Hidden text-layer changes that don't show up visually">${totalDiscarded} hidden text diff${totalDiscarded === 1 ? '' : 's'} discarded</span>`);
+  $('diff-summary').innerHTML = parts.join(' ');
+}
+
+// Group confirmed word ops into runs of adjacent removed/added words; each
+// run becomes one "change block" rendered as a − line and/or a + line.
+function buildChangeBlocks(wordOps, pageA, pageB) {
+  const blocks = [];
+  let cur = null;
+  for (const op of wordOps) {
+    if (op.type === 'same') {
+      if (cur) { blocks.push(cur); cur = null; }
+    } else {
+      if (!cur) cur = { removed: [], added: [] };
+      if (op.type === 'removed') cur.removed.push(pageA.words[op.a].raw);
+      else cur.added.push(pageB.words[op.b].raw);
+    }
+  }
+  if (cur) blocks.push(cur);
+  return blocks;
+}
+
+function makeTextChangesPanel(data) {
+  const panel = document.createElement('div');
+  panel.className = 'pair-text-changes';
+  const blocks = buildChangeBlocks(data.wordOps, data.pageA, data.pageB);
+  const title = document.createElement('div');
+  title.className = 'pair-text-changes-title';
+  const total = data.removedCount + data.addedCount;
+  title.textContent = `Text changes (${total} word${total === 1 ? '' : 's'} across ${blocks.length} block${blocks.length === 1 ? '' : 's'})`;
+  panel.appendChild(title);
+  for (const block of blocks) {
+    const div = document.createElement('div');
+    div.className = 'diff-block';
+    if (block.removed.length) {
+      div.innerHTML += `<div class="diff-line removed"><span class="diff-marker">−</span><span>${escapeHtml(block.removed.join(' '))}</span></div>`;
+    }
+    if (block.added.length) {
+      div.innerHTML += `<div class="diff-line added"><span class="diff-marker">+</span><span>${escapeHtml(block.added.join(' '))}</span></div>`;
+    }
+    panel.appendChild(div);
+  }
+  return panel;
+}
+
+function addNavLink(navList, pageIdx, label, marker, markerClass, rowId) {
+  const link = document.createElement('button');
+  link.className = 'page-link';
+  link.dataset.rowId = rowId;
+  link.innerHTML = `
+    <span class="page-link-num">${pageIdx}</span>
+    <span class="page-link-info">${escapeHtml(label)}</span>
+    <span class="page-link-marker ${markerClass}">${marker}</span>
+  `;
+  link.addEventListener('click', () => {
+    const target = $(rowId);
+    if (target) {
+      target.classList.remove('collapsed');
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    document.querySelectorAll('.page-link.active').forEach(el => el.classList.remove('active'));
+    link.classList.add('active');
+  });
+  navList.appendChild(link);
+}
+
+function makeEmptyCell(message, kind) {
+  const cell = document.createElement('div');
+  cell.className = `page-cell ${kind}`;
+  const label = document.createElement('div');
+  label.className = 'page-cell-label';
+  label.innerHTML = `<span class="info">—</span>`;
+  const empty = document.createElement('div');
+  empty.className = `page-cell-empty ${kind}`;
+  empty.textContent = message;
+  cell.appendChild(label);
+  cell.appendChild(empty);
+  return cell;
+}
+
+function makePageCell({ page, side, wordOps, visualMask, cellClass, labelText }) {
+  const cell = document.createElement('div');
+  cell.className = `page-cell ${cellClass}`;
+
+  const labelEl = document.createElement('div');
+  labelEl.className = 'page-cell-label';
+  labelEl.innerHTML = `<span class="info">${escapeHtml(labelText)}</span>`;
+  cell.appendChild(labelEl);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'page-cell-canvas-wrap';
+
+  const baseCanvas = document.createElement('canvas');
+  baseCanvas.width = page.canvas.width;
+  baseCanvas.height = page.canvas.height;
+  baseCanvas.getContext('2d').drawImage(page.canvas, 0, 0);
+  wrap.appendChild(baseCanvas);
+
+  const overlay = document.createElement('canvas');
+  overlay.className = 'overlay-canvas';
+  overlay.width = page.canvas.width;
+  overlay.height = page.canvas.height;
+  const octx = overlay.getContext('2d');
+
+  if (wordOps) {
+    const FILL_REMOVED = 'rgba(248,81,73,0.32)';
+    const FILL_ADDED = 'rgba(46,160,67,0.32)';
+    const STROKE_REMOVED = 'rgba(248,81,73,0.85)';
+    const STROKE_ADDED = 'rgba(46,160,67,0.85)';
+    for (const op of wordOps) {
+      if (op.type === 'removed' && side === 'a') {
+        const w = page.words[op.a];
+        if (w) drawWordBox(octx, w, FILL_REMOVED, STROKE_REMOVED);
+      } else if (op.type === 'added' && side === 'b') {
+        const w = page.words[op.b];
+        if (w) drawWordBox(octx, w, FILL_ADDED, STROKE_ADDED);
+      }
+    }
+  }
+
+  if (visualMask) {
+    const img = octx.getImageData(0, 0, overlay.width, overlay.height);
+    const data = img.data;
+    for (let i = 0; i < visualMask.length; i++) {
+      if (!visualMask[i]) continue;
+      const p = i * 4;
+      data[p] = 0xff;
+      data[p + 1] = 0xb0;
+      data[p + 2] = 0x20;
+      data[p + 3] = 140;
+    }
+    octx.putImageData(img, 0, 0);
+  }
+
+  wrap.appendChild(overlay);
+  cell.appendChild(wrap);
+  return cell;
+}
+
+function drawWordBox(ctx, w, fill, stroke) {
+  const pad = 1;
+  ctx.fillStyle = fill;
+  ctx.fillRect(w.x - pad, w.y - pad, w.width + pad * 2, w.height + pad * 2);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(w.x - pad, w.y - pad, w.width + pad * 2, w.height + pad * 2);
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+// ===== Toolbar buttons =====
+$('btn-clear').addEventListener('click', () => {
+  state.files = { a: null, b: null };
+  state.pages = { a: [], b: [] };
+  state.alignment = [];
+  state.diffData = [];
+  updateDropZoneState('a');
+  updateDropZoneState('b');
+  showInitialView();
+});
+
+$('btn-swap').addEventListener('click', () => {
+  const tmpFile = state.files.a;
+  const tmpPages = state.pages.a;
+  state.files.a = state.files.b;
+  state.pages.a = state.pages.b;
+  state.files.b = tmpFile;
+  state.pages.b = tmpPages;
+  updateDropZoneState('a');
+  updateDropZoneState('b');
+  maybeRunDiff();
+});
+
+$('opt-text').addEventListener('change', () => { if (state.alignment.length) renderDiffView(); });
+$('opt-visual').addEventListener('change', () => { if (state.alignment.length) renderDiffView(); });
+
+// ===== Init =====
+setupDropZone('a');
+setupDropZone('b');
+
+// Whole-page drag indicator (after both files are loaded, drag-and-drop replaces A or B
+// — but only via the drop-zones; in the diff view, we just hint visually).
+let dragCounter = 0;
+const dropOverlay = $('drop-overlay');
+document.addEventListener('dragenter', e => {
+  if (!isFileDrag(e)) return;
+  dragCounter++;
+  if ($('content-area').style.display !== 'none') dropOverlay.classList.add('visible');
+});
+document.addEventListener('dragleave', e => {
+  if (!isFileDrag(e)) return;
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dropOverlay.classList.remove('visible');
+  }
+});
+document.addEventListener('dragover', e => { if (isFileDrag(e)) e.preventDefault(); });
+document.addEventListener('drop', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = 0;
+  dropOverlay.classList.remove('visible');
+  // When in diff view, dropped file replaces B by default (most common
+  // workflow is iterating on a revision); shift held replaces A.
+  if ($('content-area').style.display !== 'none' && e.dataTransfer.files.length) {
+    const side = e.shiftKey ? 'a' : 'b';
+    handleFileForSide(side, e.dataTransfer.files[0]);
+  }
+});
+
+// Expose for testing
+window._visualdiff = {
+  state,
+  loadFile,
+  handleFileForSide,
+  alignPages,
+  diffWords,
+  computeVisualDiff,
+};
+</script>
+</body>
+</html>
