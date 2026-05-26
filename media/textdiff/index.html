@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text diff</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+a { color: #79b8ff; }
+button { font: inherit; }
+
+header {
+  padding: 1rem 1.5rem .75rem;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .15rem;
+}
+
+header .breadcrumb a { color: #8b949e; text-decoration: underline; text-decoration-color: #30363d; }
+header .breadcrumb a:hover { color: #c9d1d9; }
+
+header h1 { font-size: 1.25rem; font-weight: 600; }
+
+/* Top toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar .spacer { flex: 1; }
+.toolbar .sep { width: 1px; height: 1.2rem; background: #30363d; }
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+button.btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  font-weight: 600;
+}
+button.btn-primary:hover { background: #2ea043; border-color: #46c057; }
+button.btn-primary:active { background: #1c7430; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  cursor: pointer;
+  user-select: none;
+  padding: 0 .25rem;
+}
+
+.checkbox-group input { accent-color: #58a6ff; }
+
+.summary {
+  font-size: .8rem;
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+
+.summary .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: .75rem;
+}
+
+.pill .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.pill.removed { background: rgba(248,81,73,.15); color: #ff8b80; }
+.pill.removed .swatch { background: #ff5a52; }
+.pill.added { background: rgba(46,160,67,.15); color: #7ee787; }
+.pill.added .swatch { background: #3fb950; }
+.pill.changed { background: rgba(229,192,123,.15); color: #ffd866; }
+.pill.changed .swatch { background: #e5c07b; }
+.pill.same { background: rgba(110,118,129,.15); color: #8b949e; }
+
+/* Workspace */
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+/* Input view (initial) */
+.input-view {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.input-view.hidden { display: none; }
+
+.input-pane {
+  display: flex;
+  flex-direction: column;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+  transition: border-color .15s, background .15s;
+}
+
+.input-pane.dragover {
+  border-color: #58a6ff;
+  background: #1c2230;
+}
+
+.input-pane.loaded {
+  border-color: rgba(46,160,67,.5);
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+
+.side-tag {
+  font-weight: 600;
+  color: #8b949e;
+  background: #161b22;
+  border: 1px solid #21262d;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: .7rem;
+  letter-spacing: .04em;
+}
+
+.input-pane.loaded .side-tag {
+  color: #7ee787;
+  border-color: rgba(46,160,67,.4);
+}
+
+.pane-source {
+  flex: 1;
+  color: #8b949e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-pane.loaded .pane-source { color: #c9d1d9; }
+
+.pdf-btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  padding: .2rem .55rem;
+  font-size: .73rem;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+}
+
+.pdf-btn:hover { background: #30363d; }
+.pdf-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pdf-btn input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+
+.pane-clear {
+  background: transparent;
+  border: 1px solid #21262d;
+  color: #6e7681;
+  border-radius: 5px;
+  padding: .2rem .5rem;
+  font-size: .73rem;
+}
+
+.pane-clear:hover { color: #c9d1d9; border-color: #30363d; }
+
+.input-pane textarea {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: #0f1117;
+  color: #e1e4e8;
+  padding: .75rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .82rem;
+  line-height: 1.55;
+  tab-size: 4;
+}
+
+.input-pane textarea::placeholder { color: #6e7681; }
+
+.input-pane .drop-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28,34,48,.92);
+  color: #58a6ff;
+  font-size: 1rem;
+  font-weight: 600;
+  pointer-events: none;
+  border: 2px dashed #58a6ff;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.input-pane.dragover .drop-hint { display: flex; }
+
+/* Diff view */
+.diff-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #0f1117;
+}
+
+.diff-view.hidden { display: none; }
+
+.diff-headers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid #21262d;
+  background: #161b22;
+  flex-shrink: 0;
+}
+
+.diff-header {
+  padding: .55rem .9rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .8rem;
+  overflow: hidden;
+  border-right: 1px solid #21262d;
+}
+
+.diff-header:last-child { border-right: none; }
+
+.diff-header .side-letter {
+  font-weight: 700;
+  color: #8b949e;
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .7rem;
+}
+
+.diff-header .file-name {
+  color: #c9d1d9;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-header .meta { color: #8b949e; font-size: .72rem; flex-shrink: 0; }
+
+.diff-scroller {
+  flex: 1;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .82rem;
+  line-height: 1.55;
+}
+
+.diff-table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.diff-table td {
+  vertical-align: top;
+  padding: 0;
+}
+
+.gutter {
+  width: 3rem;
+  user-select: none;
+  text-align: right;
+  padding: 0 8px 0 6px;
+  color: #6e7681;
+  font-size: .72rem;
+  background: #0d1117;
+  border-right: 1px solid #21262d;
+  font-variant-numeric: tabular-nums;
+}
+
+.marker {
+  width: 1rem;
+  user-select: none;
+  text-align: center;
+  padding: 0;
+  color: #6e7681;
+  font-weight: 700;
+  background: #0d1117;
+  border-right: 1px solid #21262d;
+}
+
+.line {
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #c9d1d9;
+}
+
+td.line.empty { background: #14171c; }
+
+td.cell-removed { background: rgba(248,81,73,.10); }
+td.cell-removed.marker { color: #ff8b80; background: rgba(248,81,73,.16); }
+td.cell-removed.gutter { background: rgba(248,81,73,.13); }
+
+td.cell-added { background: rgba(46,160,67,.10); }
+td.cell-added.marker { color: #7ee787; background: rgba(46,160,67,.16); }
+td.cell-added.gutter { background: rgba(46,160,67,.13); }
+
+.word-removed { background: rgba(248,81,73,.35); border-radius: 2px; padding: 0 1px; }
+.word-added { background: rgba(46,160,67,.35); border-radius: 2px; padding: 0 1px; }
+
+.diff-row { scroll-margin-top: 1.5rem; }
+
+.col-sep {
+  width: 0;
+  border-right: 1px solid #21262d;
+}
+
+/* Hunk separator (when collapsing context, future use) */
+.hunk-sep td {
+  background: #0d1117;
+  color: #6e7681;
+  padding: .25rem .75rem;
+  text-align: center;
+  font-size: .72rem;
+  letter-spacing: .08em;
+  border-top: 1px solid #21262d;
+  border-bottom: 1px solid #21262d;
+}
+
+/* Status banner */
+.status-banner {
+  position: fixed;
+  left: 50%;
+  top: 1.1rem;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .6rem 1rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  box-shadow: 0 6px 20px rgba(0,0,0,.6);
+  display: none;
+  z-index: 200;
+  min-width: 320px;
+}
+
+.status-banner.visible { display: block; }
+
+.status-banner .progress {
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+
+.status-banner .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  width: 0;
+  transition: width .2s;
+}
+
+/* Empty diff message */
+.diff-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6e7681;
+  font-size: .9rem;
+  font-style: italic;
+  padding: 2rem;
+  text-align: center;
+}
+
+.error-banner {
+  background: rgba(248,81,73,.12);
+  border-bottom: 1px solid rgba(248,81,73,.3);
+  color: #ff8b80;
+  padding: .5rem 1rem;
+  font-size: .82rem;
+  display: none;
+}
+
+.error-banner.visible { display: block; }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Text diff</h1>
+</header>
+
+<div class="toolbar">
+  <button class="icon-btn btn-primary" id="btn-diff" style="display:none" title="Compute and show the diff">
+    <svg viewBox="0 0 16 16"><path d="M3 8l3 3 7-7"/></svg>
+    Diff!
+  </button>
+  <button class="icon-btn" id="btn-edit" style="display:none">
+    <svg viewBox="0 0 16 16"><path d="M10 3l3 3M3 13V10l7-7 3 3-7 7H3z"/></svg>
+    Edit
+  </button>
+  <button class="icon-btn" id="btn-swap" disabled title="Swap A and B">
+    <svg viewBox="0 0 16 16"><path d="M3 5h9l-2-2M13 11H4l2 2"/></svg>
+    Swap
+  </button>
+  <button class="icon-btn" id="btn-clear" disabled>
+    <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    Clear
+  </button>
+  <div class="sep"></div>
+  <label class="checkbox-group" title="Collapse runs of whitespace and trim line ends when comparing">
+    <input type="checkbox" id="opt-ws"> Ignore whitespace
+  </label>
+  <div class="sep" id="nav-sep" style="display:none"></div>
+  <button class="icon-btn" id="btn-prev" style="display:none" title="Previous change (k)">
+    <svg viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></svg>
+  </button>
+  <button class="icon-btn" id="btn-next" style="display:none" title="Next change (j)">
+    <svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>
+  </button>
+  <div class="spacer"></div>
+  <div class="summary" id="diff-summary"></div>
+</div>
+
+<div class="error-banner" id="error-banner"></div>
+
+<div class="workspace">
+
+  <!-- Input view -->
+  <div class="input-view" id="input-view">
+    <div class="input-pane" data-side="a" id="pane-a">
+      <div class="pane-header">
+        <span class="side-tag">A · ORIGINAL</span>
+        <span class="pane-source" id="src-a">Paste text or drop a file</span>
+        <button class="pdf-btn" title="Pick a file: PDF, DOCX, ODT, HTML, JSON, or any text-like file (.txt, .md, .csv, .log, ...)">
+          <svg viewBox="0 0 16 16"><path d="M8 11V3M5 6l3-3 3 3M3 13h10"/></svg>
+          File
+          <input type="file" id="file-a">
+        </button>
+        <button class="pane-clear" id="pane-clear-a" title="Clear this side">×</button>
+      </div>
+      <textarea id="text-a" spellcheck="false" placeholder="Paste the original text here, or drop a file anywhere on this pane.&#10;&#10;Supported: PDF (text layer, no OCR), DOCX, ODT, HTML, JSON, and any plain-text file (.txt, .md, .csv, .log, source code, …)."></textarea>
+      <div class="drop-hint">Drop file to load as A</div>
+    </div>
+    <div class="input-pane" data-side="b" id="pane-b">
+      <div class="pane-header">
+        <span class="side-tag">B · REVISED</span>
+        <span class="pane-source" id="src-b">Paste text or drop a file</span>
+        <button class="pdf-btn" title="Pick a file: PDF, DOCX, ODT, HTML, JSON, or any text-like file (.txt, .md, .csv, .log, ...)">
+          <svg viewBox="0 0 16 16"><path d="M8 11V3M5 6l3-3 3 3M3 13h10"/></svg>
+          File
+          <input type="file" id="file-b">
+        </button>
+        <button class="pane-clear" id="pane-clear-b" title="Clear this side">×</button>
+      </div>
+      <textarea id="text-b" spellcheck="false" placeholder="Paste the revised text here, or drop a file anywhere on this pane.&#10;&#10;Supported: PDF (text layer, no OCR), DOCX, ODT, HTML, JSON, and any plain-text file (.txt, .md, .csv, .log, source code, …)."></textarea>
+      <div class="drop-hint">Drop file to load as B</div>
+    </div>
+  </div>
+
+  <!-- Diff view -->
+  <div class="diff-view hidden" id="diff-view">
+    <div class="diff-headers">
+      <div class="diff-header">
+        <span class="side-letter">A</span>
+        <span class="file-name" id="diff-name-a"></span>
+        <span class="meta" id="diff-meta-a"></span>
+      </div>
+      <div class="diff-header">
+        <span class="side-letter">B</span>
+        <span class="file-name" id="diff-name-b"></span>
+        <span class="meta" id="diff-meta-b"></span>
+      </div>
+    </div>
+    <div class="diff-scroller" id="diff-scroller">
+      <table class="diff-table" id="diff-table">
+        <colgroup>
+          <col style="width:3rem"><col style="width:1rem"><col><col style="width:0">
+          <col style="width:3rem"><col style="width:1rem"><col>
+        </colgroup>
+        <tbody id="diff-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="status-banner" id="status-banner">
+  <span id="status-text">Working...</span>
+  <div class="progress"><div class="progress-fill" id="status-progress"></div></div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+// ===== State =====
+const state = {
+  texts: { a: '', b: '' },
+  sources: { a: null, b: null }, // null | { kind: 'text' } | { kind: 'pdf'|'file', name, pages? }
+  diffOps: null,
+  rowsByChange: [],
+  activeChange: -1,
+};
+
+// ===== PDF.js =====
+let pdfjsLib = null;
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+// ===== Status =====
+function showStatus(text, progress) {
+  $('status-banner').classList.add('visible');
+  $('status-text').textContent = text;
+  $('status-progress').style.width = `${(progress || 0) * 100}%`;
+}
+function hideStatus() {
+  $('status-banner').classList.remove('visible');
+  $('status-progress').style.width = '0%';
+}
+function showError(msg) {
+  const el = $('error-banner');
+  if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+// ===== PDF text extraction =====
+// PDF text items have absolute positions; we reconstruct lines by grouping
+// items whose baseline-y is close to the previous, then sort each line by x.
+// No OCR: pages without a text layer simply yield empty strings.
+function reconstructPageText(textContent) {
+  // Each item has { str, transform: [a,b,c,d,e,f] } where f is y-position in
+  // PDF user units (origin bottom-left). Group items into rows by quantized y.
+  const items = [];
+  for (const it of textContent.items) {
+    if (!it.str) continue;
+    const x = it.transform[4];
+    const y = it.transform[5];
+    const h = Math.hypot(it.transform[2], it.transform[3]) || 10;
+    items.push({ str: it.str, x, y, h, eol: !!it.hasEOL });
+  }
+  if (!items.length) return '';
+  // Sort by y descending (top to bottom), then x ascending.
+  items.sort((a, b) => (b.y - a.y) || (a.x - b.x));
+  const lines = [];
+  let cur = [items[0]];
+  let curY = items[0].y;
+  const tol = Math.max(2, items[0].h * 0.5);
+  for (let i = 1; i < items.length; i++) {
+    const it = items[i];
+    if (Math.abs(it.y - curY) <= tol) {
+      cur.push(it);
+    } else {
+      lines.push(cur);
+      cur = [it];
+      curY = it.y;
+    }
+  }
+  lines.push(cur);
+  return lines.map(row => {
+    row.sort((a, b) => a.x - b.x);
+    let out = '';
+    let lastEnd = -Infinity;
+    let avgH = row.reduce((s, x) => s + x.h, 0) / row.length;
+    for (const it of row) {
+      // Insert a single space between items that have a real horizontal gap
+      // and aren't already separated by whitespace in the source.
+      if (out.length && it.x - lastEnd > avgH * 0.2) {
+        if (!/\s$/.test(out) && !/^\s/.test(it.str)) out += ' ';
+      }
+      out += it.str;
+      lastEnd = it.x + (it.str.length * avgH * 0.5); // rough estimate
+    }
+    return out.replace(/\s+$/, '');
+  }).join('\n');
+}
+
+// ===== ZIP reader (for .docx / .odt) =====
+// Minimal ZIP central-directory parser; supports stored (0) and deflated (8)
+// members, which together cover essentially every Office/OpenDocument file.
+// Uses the browser's built-in DecompressionStream — no JSZip needed.
+async function readZipMember(buffer, wantedName) {
+  const view = new DataView(buffer);
+  const len = buffer.byteLength;
+  // Locate End-of-Central-Directory record (signature 0x06054b50). It sits
+  // within the last 64 KB, possibly followed by an archive comment.
+  let eocd = -1;
+  for (let i = len - 22; i >= Math.max(0, len - 65557); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Not a valid ZIP archive (no EOCD)');
+  const cdEntries = view.getUint16(eocd + 10, true);
+  const cdOffset = view.getUint32(eocd + 16, true);
+  let p = cdOffset;
+  const dec = new TextDecoder('utf-8');
+  for (let i = 0; i < cdEntries; i++) {
+    if (view.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt central directory');
+    const compression = view.getUint16(p + 10, true);
+    const compressedSize = view.getUint32(p + 20, true);
+    const nameLen = view.getUint16(p + 28, true);
+    const extraLen = view.getUint16(p + 30, true);
+    const commentLen = view.getUint16(p + 32, true);
+    const localOff = view.getUint32(p + 42, true);
+    const name = dec.decode(new Uint8Array(buffer, p + 46, nameLen));
+    if (name === wantedName) {
+      if (view.getUint32(localOff, true) !== 0x04034b50) throw new Error('Corrupt local header');
+      const lNameLen = view.getUint16(localOff + 26, true);
+      const lExtraLen = view.getUint16(localOff + 28, true);
+      const dataStart = localOff + 30 + lNameLen + lExtraLen;
+      const data = new Uint8Array(buffer, dataStart, compressedSize);
+      if (compression === 0) return dec.decode(data);
+      if (compression === 8) {
+        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        return dec.decode(await new Response(stream).arrayBuffer());
+      }
+      throw new Error(`Unsupported ZIP compression method: ${compression}`);
+    }
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  throw new Error(`Member not found in archive: ${wantedName}`);
+}
+
+function parseXml(xmlText, label) {
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  const err = doc.getElementsByTagName('parsererror')[0];
+  if (err) throw new Error(`XML parse error in ${label}: ${err.textContent.split('\n')[0]}`);
+  return doc;
+}
+
+// ===== DOCX text extraction =====
+// Strategy: replace block-level / break / tab elements with text-node markers,
+// then read the body's textContent. Avoids hand-walking node order.
+const DOCX_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+async function extractDocxText(file) {
+  const buf = await file.arrayBuffer();
+  const xml = await readZipMember(buf, 'word/document.xml');
+  const doc = parseXml(xml, 'word/document.xml');
+  // querySelectorAll returns a static NodeList captured in document order, so
+  // it's safe to mutate the tree (replaceWith) during iteration.
+  for (const el of doc.querySelectorAll('*')) {
+    if (el.namespaceURI !== DOCX_NS) continue;
+    const n = el.localName;
+    if (n === 'p') el.insertBefore(doc.createTextNode('\n'), el.firstChild);
+    else if (n === 'br') el.replaceWith(doc.createTextNode('\n'));
+    else if (n === 'tab') el.replaceWith(doc.createTextNode('\t'));
+    else if (n === 'instrText') el.replaceWith(doc.createTextNode(''));
+  }
+  const body = doc.getElementsByTagNameNS(DOCX_NS, 'body')[0] || doc.documentElement;
+  return body.textContent.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ===== ODT text extraction =====
+const ODT_TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+const ODT_OFFICE_NS = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
+
+async function extractOdtText(file) {
+  const buf = await file.arrayBuffer();
+  const xml = await readZipMember(buf, 'content.xml');
+  const doc = parseXml(xml, 'content.xml');
+  for (const el of doc.querySelectorAll('*')) {
+    if (el.namespaceURI !== ODT_TEXT_NS) continue;
+    const n = el.localName;
+    if (n === 'p' || n === 'h') el.insertBefore(doc.createTextNode('\n'), el.firstChild);
+    else if (n === 'line-break') el.replaceWith(doc.createTextNode('\n'));
+    else if (n === 'tab') el.replaceWith(doc.createTextNode('\t'));
+    else if (n === 's') {
+      const c = parseInt(el.getAttributeNS(ODT_TEXT_NS, 'c') || '1', 10);
+      el.replaceWith(doc.createTextNode(' '.repeat(c)));
+    }
+  }
+  const body = doc.getElementsByTagNameNS(ODT_OFFICE_NS, 'body')[0] || doc.documentElement;
+  return body.textContent.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ===== HTML text extraction =====
+// innerText is unreliable on detached elements (empty in Firefox). Walk the
+// DOM manually so block boundaries become newlines and inline whitespace is
+// collapsed — except inside <pre>, where every char matters.
+const HTML_BLOCK_TAGS = new Set([
+  'p','div','section','article','header','footer','main','aside','nav',
+  'h1','h2','h3','h4','h5','h6','li','tr','blockquote','pre','figure',
+  'figcaption','address','dt','dd','hr','table','ul','ol','dl','form',
+  'fieldset','details','summary',
+]);
+const HTML_SKIP_TAGS = new Set(['script','style','noscript','template','head']);
+
+function extractHtmlText(htmlString) {
+  const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+  const root = doc.body || doc.documentElement;
+  let out = '';
+  const append = (s) => { out += s; };
+  function walk(node, pre) {
+    if (node.nodeType === 3) {
+      append(pre ? node.nodeValue : node.nodeValue.replace(/\s+/g, ' '));
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    if (HTML_SKIP_TAGS.has(tag)) return;
+    if (tag === 'br') { append('\n'); return; }
+    const isBlock = HTML_BLOCK_TAGS.has(tag);
+    const isPre = pre || tag === 'pre';
+    if (isBlock && out && !out.endsWith('\n')) append('\n');
+    for (const child of node.childNodes) walk(child, isPre);
+    if (isBlock && !out.endsWith('\n')) append('\n');
+  }
+  walk(root, false);
+  // Order matters: collapse trailing spaces before newlines BEFORE trimming
+  // leading newlines — otherwise the initial " \n" (inter-element whitespace
+  // ahead of the first block) survives the leading-newline trim.
+  return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ===== Diff algorithm =====
+
+// Line-level LCS over normalized lines. Returns ops: [{type, a?, b?}] where
+// type is 'same' | 'removed' | 'added'. We compute on normalized strings
+// (optionally ignoring whitespace) but keep original strings for display.
+function diffLines(linesA, linesB, opts) {
+  const norm = opts.ignoreWs
+    ? s => s.replace(/\s+/g, ' ').trim()
+    : s => s;
+  const aN = linesA.map(norm);
+  const bN = linesB.map(norm);
+  return lcsOps(aN, bN);
+}
+
+// Generic LCS-DP backtrack. Returns ops [{type:'same'|'removed'|'added', a, b}].
+// Memory: O((M+1)*(N+1)) Int32 — caller should cap on very large inputs.
+function lcsOps(a, b) {
+  const M = a.length, N = b.length;
+  const dp = [];
+  for (let i = 0; i <= M; i++) dp.push(new Int32Array(N + 1));
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+      else dp[i][j] = dp[i - 1][j] >= dp[i][j - 1] ? dp[i - 1][j] : dp[i][j - 1];
+    }
+  }
+  const ops = [];
+  let i = M, j = N;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      ops.push({ type: 'same', a: i - 1, b: j - 1 });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.push({ type: 'added', b: j - 1 });
+      j--;
+    } else if (i > 0) {
+      ops.push({ type: 'removed', a: i - 1 });
+      i--;
+    } else break;
+  }
+  ops.reverse();
+  return ops;
+}
+
+// Tokenize for intra-line diff: words, whitespace runs, individual punctuation.
+function tokenize(line) {
+  return line.match(/[\p{L}\p{N}_]+|\s+|[^\s\p{L}\p{N}_]/gu) || [];
+}
+
+// Decide if two changed lines are "similar enough" to be paired and word-diffed.
+// Otherwise render them as independent removed/added with no inline highlight.
+function similarity(a, b) {
+  if (!a.length && !b.length) return 1;
+  const lo = a.length < b.length ? a.length : b.length;
+  const hi = a.length < b.length ? b.length : a.length;
+  if (hi === 0) return 1;
+  if (lo / hi < 0.25) return 0;
+  // Cheap: ratio of shared trigram set
+  const tri = s => {
+    const t = new Set();
+    const p = ' ' + s + ' ';
+    for (let i = 0; i < p.length - 2; i++) t.add(p.slice(i, i + 3));
+    return t;
+  };
+  const ta = tri(a), tb = tri(b);
+  let inter = 0;
+  for (const x of ta) if (tb.has(x)) inter++;
+  const union = ta.size + tb.size - inter;
+  return union > 0 ? inter / union : 0;
+}
+
+// ===== Build rendered rows =====
+// Pair adjacent removed/added runs into aligned rows for the split view.
+// Each output row is one of:
+//   { same:  { aIdx, bIdx, aText, bText } }
+//   { rem:   { aIdx, aText } }          (only A side)
+//   { add:   { bIdx, bText } }          (only B side)
+//   { pair:  { aIdx, bIdx, aText, bText, aTokens, bTokens, intraOps } }
+function buildRows(ops, linesA, linesB) {
+  const rows = [];
+  let k = 0;
+  while (k < ops.length) {
+    const op = ops[k];
+    if (op.type === 'same') {
+      rows.push({ kind: 'same', aIdx: op.a, bIdx: op.b, aText: linesA[op.a], bText: linesB[op.b] });
+      k++;
+      continue;
+    }
+    // Collect a run of removed/added (in any order) until the next 'same'.
+    const removed = [];
+    const added = [];
+    while (k < ops.length && ops[k].type !== 'same') {
+      if (ops[k].type === 'removed') removed.push(ops[k].a);
+      else added.push(ops[k].b);
+      k++;
+    }
+    // Greedy pairing: pair removed[i] with the best-matching added[j] still
+    // available. For typical edits this is the in-order pairing — only
+    // recompute if both lists are short enough to make it cheap.
+    const usedB = new Set();
+    const pairs = [];
+    const lonelyA = [];
+    if (removed.length <= 30 && added.length <= 30) {
+      for (let i = 0; i < removed.length; i++) {
+        let bestJ = -1, bestS = -1;
+        for (let j = 0; j < added.length; j++) {
+          if (usedB.has(j)) continue;
+          const s = similarity(linesA[removed[i]], linesB[added[j]]);
+          if (s > bestS) { bestS = s; bestJ = j; }
+        }
+        if (bestJ >= 0 && bestS >= 0.35) {
+          pairs.push([removed[i], added[bestJ]]);
+          usedB.add(bestJ);
+        } else {
+          lonelyA.push(removed[i]);
+        }
+      }
+    } else {
+      // In-order pairing for large runs.
+      const n = Math.min(removed.length, added.length);
+      for (let i = 0; i < n; i++) {
+        pairs.push([removed[i], added[i]]);
+        usedB.add(i);
+      }
+      for (let i = n; i < removed.length; i++) lonelyA.push(removed[i]);
+    }
+    // Output pairs in the order they appeared in `removed`, with any unpaired
+    // additions interleaved by their B-position.
+    const pairByA = new Map(pairs.map(([a, b]) => [a, b]));
+    const aOrder = removed.slice();
+    const lonelyB = added.filter((_, j) => !usedB.has(j));
+    // Pair rows first (preserves A order), then orphan removeds, then orphan addeds.
+    // Simpler split-view convention.
+    for (const a of aOrder) {
+      if (pairByA.has(a)) {
+        const b = pairByA.get(a);
+        // Always compute intra-line word diff (capped so we don't blow up
+        // on pathologically long single lines).
+        const tokA = tokenize(linesA[a]);
+        const tokB = tokenize(linesB[b]);
+        const intraOps = (tokA.length + tokB.length <= 4000) ? lcsOps(tokA, tokB) : null;
+        rows.push({
+          kind: 'pair', aIdx: a, bIdx: b,
+          aText: linesA[a], bText: linesB[b],
+          tokA, tokB, intraOps,
+        });
+      } else {
+        rows.push({ kind: 'rem', aIdx: a, aText: linesA[a] });
+      }
+    }
+    for (const b of lonelyB) {
+      rows.push({ kind: 'add', bIdx: b, bText: linesB[b] });
+    }
+  }
+  return rows;
+}
+
+// ===== Render =====
+function splitLines(text) {
+  return text.replace(/\r\n?/g, '\n').split('\n');
+}
+
+function runDiff() {
+  const textA = state.texts.a;
+  const textB = state.texts.b;
+  if (!textA && !textB) {
+    showInputView();
+    return;
+  }
+  const linesA = splitLines(textA);
+  const linesB = splitLines(textB);
+  const ignoreWs = $('opt-ws').checked;
+  // Memory guard
+  const cells = linesA.length * linesB.length;
+  if (cells > 25_000_000) {
+    showError(`Inputs too large to diff (${linesA.length.toLocaleString()} × ${linesB.length.toLocaleString()} lines). Try splitting the input or removing some content.`);
+    showInputView();
+    return;
+  }
+  showError(null);
+  showStatus('Diffing...', 0.5);
+  // Yield to let the status paint, then run synchronously (LCS is one pass).
+  requestAnimationFrame(() => {
+    try {
+      const ops = diffLines(linesA, linesB, { ignoreWs });
+      const rows = buildRows(ops, linesA, linesB);
+      state.diffOps = { ops, rows, linesA, linesB };
+      renderDiffView();
+      hideStatus();
+    } catch (e) {
+      console.error(e);
+      hideStatus();
+      showError(`Diff failed: ${e.message || e}`);
+    }
+  });
+}
+
+const NBSP = ' ';
+
+function renderInlineLine(tokens, ops, side) {
+  // side: 'a' shows removed tokens, 'b' shows added tokens. Same tokens shown on both.
+  const out = document.createDocumentFragment();
+  let buf = '';
+  let cls = null;
+  const flush = () => {
+    if (!buf) return;
+    if (cls) {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = buf;
+      out.appendChild(span);
+    } else {
+      out.appendChild(document.createTextNode(buf));
+    }
+    buf = '';
+  };
+  for (const op of ops) {
+    if (op.type === 'same') {
+      if (cls !== null) { flush(); cls = null; }
+      buf += tokens.a[op.a];
+    } else if (op.type === 'removed' && side === 'a') {
+      if (cls !== 'word-removed') { flush(); cls = 'word-removed'; }
+      buf += tokens.a[op.a];
+    } else if (op.type === 'added' && side === 'b') {
+      if (cls !== 'word-added') { flush(); cls = 'word-added'; }
+      buf += tokens.b[op.b];
+    }
+  }
+  flush();
+  return out;
+}
+
+function showInputView() {
+  $('input-view').classList.remove('hidden');
+  $('diff-view').classList.add('hidden');
+  $('btn-edit').style.display = 'none';
+  $('btn-prev').style.display = 'none';
+  $('btn-next').style.display = 'none';
+  $('nav-sep').style.display = 'none';
+  refreshDiffButton();
+}
+
+function showDiffView() {
+  $('input-view').classList.add('hidden');
+  $('diff-view').classList.remove('hidden');
+  $('btn-edit').style.display = '';
+  $('btn-diff').style.display = 'none';
+  $('btn-prev').style.display = '';
+  $('btn-next').style.display = '';
+  $('nav-sep').style.display = '';
+}
+
+function refreshDiffButton() {
+  // Green "Diff!" button: visible in input view whenever both textareas have
+  // non-empty content. Click triggers an explicit diff — we never auto-diff
+  // on typed/pasted text (only after a file load).
+  const inInputView = $('diff-view').classList.contains('hidden');
+  const canDiff = !!(state.texts.a && state.texts.b);
+  $('btn-diff').style.display = (inInputView && canDiff) ? '' : 'none';
+}
+
+function renderDiffView() {
+  showDiffView();
+  const data = state.diffOps;
+
+  // Headers
+  $('diff-name-a').textContent = sourceLabel('a');
+  $('diff-name-b').textContent = sourceLabel('b');
+  $('diff-meta-a').textContent = `${data.linesA.length} line${data.linesA.length === 1 ? '' : 's'}`;
+  $('diff-meta-b').textContent = `${data.linesB.length} line${data.linesB.length === 1 ? '' : 's'}`;
+
+  const body = $('diff-body');
+  body.textContent = '';
+  state.rowsByChange = [];
+  state.activeChange = -1;
+
+  let removedCount = 0, addedCount = 0, changedCount = 0;
+  let prevChange = false;
+
+  for (const r of data.rows) {
+    const tr = document.createElement('tr');
+    tr.className = 'diff-row';
+    const isChange = r.kind !== 'same';
+
+    if (r.kind === 'same') {
+      tr.appendChild(td('gutter', String(r.aIdx + 1)));
+      tr.appendChild(td('marker', ''));
+      tr.appendChild(td('line', r.aText || NBSP));
+      tr.appendChild(td('col-sep', ''));
+      tr.appendChild(td('gutter', String(r.bIdx + 1)));
+      tr.appendChild(td('marker', ''));
+      tr.appendChild(td('line', r.bText || NBSP));
+    } else if (r.kind === 'pair') {
+      changedCount++;
+      tr.appendChild(td('gutter cell-removed', String(r.aIdx + 1)));
+      tr.appendChild(td('marker cell-removed', '−'));
+      const lineA = td('line cell-removed', '');
+      if (r.intraOps) lineA.appendChild(renderInlineLine({ a: r.tokA, b: r.tokB }, r.intraOps, 'a'));
+      else lineA.textContent = r.aText || NBSP;
+      if (!r.aText) lineA.textContent = NBSP;
+      tr.appendChild(lineA);
+
+      tr.appendChild(td('col-sep', ''));
+
+      tr.appendChild(td('gutter cell-added', String(r.bIdx + 1)));
+      tr.appendChild(td('marker cell-added', '+'));
+      const lineB = td('line cell-added', '');
+      if (r.intraOps) lineB.appendChild(renderInlineLine({ a: r.tokA, b: r.tokB }, r.intraOps, 'b'));
+      else lineB.textContent = r.bText || NBSP;
+      if (!r.bText) lineB.textContent = NBSP;
+      tr.appendChild(lineB);
+    } else if (r.kind === 'rem') {
+      removedCount++;
+      tr.appendChild(td('gutter cell-removed', String(r.aIdx + 1)));
+      tr.appendChild(td('marker cell-removed', '−'));
+      tr.appendChild(td('line cell-removed', r.aText || NBSP));
+      tr.appendChild(td('col-sep', ''));
+      tr.appendChild(td('gutter', ''));
+      tr.appendChild(td('marker', ''));
+      tr.appendChild(td('line empty', NBSP));
+    } else if (r.kind === 'add') {
+      addedCount++;
+      tr.appendChild(td('gutter', ''));
+      tr.appendChild(td('marker', ''));
+      tr.appendChild(td('line empty', NBSP));
+      tr.appendChild(td('col-sep', ''));
+      tr.appendChild(td('gutter cell-added', String(r.bIdx + 1)));
+      tr.appendChild(td('marker cell-added', '+'));
+      tr.appendChild(td('line cell-added', r.bText || NBSP));
+    }
+
+    // Only the first row of a contiguous change run is registered as a
+    // navigable change anchor (j/k jumps land on the start of each hunk).
+    if (isChange && !prevChange) state.rowsByChange.push(tr);
+    prevChange = isChange;
+
+    body.appendChild(tr);
+  }
+
+  // Summary
+  const parts = [];
+  if (removedCount) parts.push(`<span class="pill removed"><span class="swatch"></span>${removedCount} removed</span>`);
+  if (addedCount)   parts.push(`<span class="pill added"><span class="swatch"></span>${addedCount} added</span>`);
+  if (changedCount) parts.push(`<span class="pill changed"><span class="swatch"></span>${changedCount} changed</span>`);
+  if (!parts.length) parts.push(`<span class="pill same">Files are identical</span>`);
+  parts.push(`<span class="pill same">${state.rowsByChange.length} hunk${state.rowsByChange.length === 1 ? '' : 's'}</span>`);
+  $('diff-summary').innerHTML = parts.join(' ');
+}
+
+function td(cls, text) {
+  const el = document.createElement('td');
+  el.className = cls;
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+function sourceLabel(side) {
+  const src = state.sources[side];
+  if (src && (src.kind === 'pdf' || src.kind === 'file')) return src.name;
+  if (state.texts[side]) return 'Pasted text';
+  return '(empty)';
+}
+
+// ===== Input handling =====
+
+function setText(side, text, source) {
+  state.texts[side] = text;
+  state.sources[side] = source;
+  $('text-' + side).value = text;
+  const srcLabel = $('src-' + side);
+  const pane = $('pane-' + side);
+  if (source && source.kind === 'pdf') {
+    srcLabel.textContent = `PDF · ${source.name}${source.pages ? ` · ${source.pages} page${source.pages === 1 ? '' : 's'}` : ''}`;
+    pane.classList.add('loaded');
+  } else if (source && source.kind === 'file') {
+    srcLabel.textContent = `${source.name} · ${text.length.toLocaleString()} char${text.length === 1 ? '' : 's'}`;
+    pane.classList.add('loaded');
+  } else if (text) {
+    srcLabel.textContent = `Pasted · ${text.length.toLocaleString()} char${text.length === 1 ? '' : 's'}`;
+    pane.classList.add('loaded');
+  } else {
+    srcLabel.textContent = 'Paste text or drop a file';
+    pane.classList.remove('loaded');
+  }
+  refreshToolbar();
+
+  // Reset to a clean state when both sides are empty.
+  if (!state.texts.a && !state.texts.b) {
+    state.diffOps = null;
+    $('diff-summary').innerHTML = '';
+    showInputView();
+    return;
+  }
+
+  // Auto-diff is reserved for file loads. Typed/pasted text only updates the
+  // Diff! button — the user clicks it when they're ready.
+  const fromFile = source && source.kind !== 'text';
+  if (fromFile && state.texts.a && state.texts.b) {
+    runDiff();
+  } else {
+    refreshDiffButton();
+  }
+}
+
+function refreshToolbar() {
+  const hasA = !!state.texts.a;
+  const hasB = !!state.texts.b;
+  $('btn-clear').disabled = !(hasA || hasB || state.sources.a || state.sources.b);
+  $('btn-swap').disabled = !(hasA && hasB);
+}
+
+async function handlePdfFile(side, file) {
+  try {
+    showStatus(`Loading ${file.name}...`, 0);
+    const lib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await lib.getDocument({ data: buf }).promise;
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      showStatus(`Extracting ${side === 'a' ? 'A' : 'B'} (${file.name}) — page ${i} / ${pdf.numPages}`, (i - 1) / pdf.numPages);
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      pages.push(reconstructPageText(tc));
+      if (i % 5 === 0) await new Promise(r => requestAnimationFrame(r));
+    }
+    const text = pages.join('\n\n');
+    setText(side, text, { kind: 'pdf', name: file.name, pages: pdf.numPages });
+    hideStatus();
+    const empty = pages.filter(p => p.trim().length === 0).length;
+    if (empty === pages.length) {
+      showError(`No text could be extracted from ${file.name}. The PDF may be a scan — this tool does not OCR.`);
+    } else if (empty > 0) {
+      showError(`${empty} of ${pages.length} pages in ${file.name} had no text (likely scanned).`);
+    } else {
+      showError(null);
+    }
+  } catch (e) {
+    console.error(e);
+    hideStatus();
+    showError(`Could not load ${file.name}: ${e.message || e}`);
+  }
+}
+
+function setupPane(side) {
+  const pane = $('pane-' + side);
+  const ta = $('text-' + side);
+  const fileInput = $('file-' + side);
+
+  ta.addEventListener('input', () => {
+    setText(side, ta.value, ta.value ? { kind: 'text' } : null);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleDroppedFile(side, fileInput.files[0]);
+    fileInput.value = '';
+  });
+
+  $('pane-clear-' + side).addEventListener('click', () => {
+    setText(side, '', null);
+  });
+
+  pane.addEventListener('dragover', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    pane.classList.add('dragover');
+  });
+  pane.addEventListener('dragleave', e => {
+    if (e.target === pane || !pane.contains(e.relatedTarget)) {
+      pane.classList.remove('dragover');
+    }
+  });
+  pane.addEventListener('drop', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pane.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) handleDroppedFile(side, f);
+  });
+}
+
+async function handleDroppedFile(side, file) {
+  const ext = (file.name.match(/\.([a-z0-9]+)$/i) || ['', ''])[1].toLowerCase();
+  const mime = file.type || '';
+  // PDF gets its own path because text extraction is page-async (PDF.js).
+  if (ext === 'pdf' || mime === 'application/pdf') return handlePdfFile(side, file);
+  // ZIP-based document formats. Extraction can fail on encrypted/odd archives
+  // — surface the error instead of falling through to gibberish-as-text.
+  const isDocx = ext === 'docx' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isOdt  = ext === 'odt'  || mime === 'application/vnd.oasis.opendocument.text';
+  if (isDocx || isOdt) {
+    try {
+      showStatus(`Extracting ${file.name}...`, 0.3);
+      const text = isDocx ? await extractDocxText(file) : await extractOdtText(file);
+      setText(side, text, { kind: 'file', name: file.name });
+      showError(null);
+    } catch (e) {
+      console.error(e);
+      showError(`Could not extract text from ${file.name}: ${e.message || e}`);
+    } finally {
+      hideStatus();
+    }
+    return;
+  }
+  // Everything else: read as UTF-8 text, then optionally post-process.
+  let raw;
+  try { raw = await file.text(); }
+  catch (e) { showError(`Could not read ${file.name}: ${e.message || e}`); return; }
+  let text = raw;
+  if (ext === 'html' || ext === 'htm' || mime === 'text/html') {
+    try { text = extractHtmlText(raw); }
+    catch { /* fall back to raw on parse error */ }
+  } else if (ext === 'json' || mime === 'application/json') {
+    try { text = JSON.stringify(JSON.parse(raw), null, 2); }
+    catch { /* invalid JSON: diff as-is so the user can see the syntax issue */ }
+  }
+  setText(side, text, { kind: 'file', name: file.name });
+}
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+// ===== Toolbar wiring =====
+
+$('btn-clear').addEventListener('click', () => {
+  setText('a', '', null);
+  setText('b', '', null);
+});
+
+$('btn-swap').addEventListener('click', () => {
+  const tA = state.texts.a, sA = state.sources.a;
+  setText('a', state.texts.b, state.sources.b);
+  setText('b', tA, sA);
+});
+
+$('btn-edit').addEventListener('click', () => {
+  // Keep state.diffOps so a future Diff! click can also use the existing
+  // textareas as-is if the user changes nothing.
+  showInputView();
+});
+
+$('btn-diff').addEventListener('click', () => {
+  if (state.texts.a && state.texts.b) runDiff();
+});
+
+$('opt-ws').addEventListener('change', () => {
+  // Only re-render if the diff is currently visible. In input view the new
+  // value is silently stored and applied on the next Diff! click.
+  const inDiffView = !$('diff-view').classList.contains('hidden');
+  if (state.diffOps && inDiffView) runDiff();
+});
+
+function jumpChange(dir) {
+  if (!state.rowsByChange.length) return;
+  let idx = state.activeChange + dir;
+  if (idx < 0) idx = state.rowsByChange.length - 1;
+  if (idx >= state.rowsByChange.length) idx = 0;
+  state.activeChange = idx;
+  state.rowsByChange[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+$('btn-prev').addEventListener('click', () => jumpChange(-1));
+$('btn-next').addEventListener('click', () => jumpChange(1));
+
+document.addEventListener('keydown', e => {
+  // Don't intercept while typing in a textarea/input.
+  if (e.target.matches('input, textarea')) return;
+  if (e.key === 'j') jumpChange(1);
+  else if (e.key === 'k') jumpChange(-1);
+});
+
+// ===== Init =====
+setupPane('a');
+setupPane('b');
+refreshToolbar();
+showInputView();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+
+// Expose for testing
+window._textdiff = { state, runDiff, setText, handlePdfFile };
+</script>
+</body>
+</html>
