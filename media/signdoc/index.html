@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign document</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Cursive signature fonts (OFL) — bundled so typed signatures look right on any OS. */
+@font-face {
+  font-family: 'SigDancing';
+  src: url('./lib/DancingScript.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: 'SigCaveat';
+  src: url('./lib/Caveat.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: 'SigPacifico';
+  src: url('./lib/Pacifico.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: 'SigGreatVibes';
+  src: url('./lib/GreatVibes.woff2') format('woff2');
+  font-weight: 400;
+  font-display: block;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+a { color: #79b8ff; }
+button { font: inherit; }
+
+header {
+  padding: 1rem 1.5rem .75rem;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .15rem;
+}
+header .breadcrumb a { color: #8b949e; text-decoration: underline; text-decoration-color: #30363d; }
+header .breadcrumb a:hover { color: #c9d1d9; }
+header h1 { font-size: 1.25rem; font-weight: 600; }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar .spacer { flex: 1; }
+.toolbar .sep { width: 1px; height: 1.2rem; background: #30363d; }
+.toolbar .doc-name {
+  color: #c9d1d9;
+  font-size: .82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 30rem;
+}
+.toolbar .doc-pages {
+  color: #8b949e;
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+button.btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  font-weight: 600;
+}
+button.btn-primary:hover { background: #2ea043; border-color: #46c057; }
+button.btn-primary:active { background: #1c7430; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Upload button with hidden file input */
+.upload-btn {
+  position: relative;
+  overflow: hidden;
+}
+.upload-btn input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+
+/* Workspace */
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+/* Left sidebar: page thumbnails */
+aside.pages-nav {
+  background: #161b22;
+  border-right: 1px solid #21262d;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.panel-title {
+  padding: .65rem .85rem;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #8b949e;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+.pages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.page-thumb {
+  border: 1px solid #21262d;
+  border-radius: 5px;
+  background: #0d1117;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color .15s, background .15s;
+}
+.page-thumb:hover { background: #1c2230; }
+.page-thumb.active { border-color: #58a6ff; background: #1c2230; }
+
+.page-thumb-canvas-wrap {
+  position: relative;
+  background: #fff;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+.page-thumb canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.page-thumb-num {
+  font-size: .7rem;
+  color: #8b949e;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+}
+.page-thumb.active .page-thumb-num { color: #c9d1d9; }
+.page-thumb-num .badge {
+  display: inline-block;
+  font-size: .6rem;
+  background: #238636;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0 5px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+/* Center: page viewer */
+.viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #0f1117;
+  overflow: hidden;
+  position: relative;
+}
+
+.viewer-scroller {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.page-stage {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(0,0,0,.5);
+  /* The canvas inside this is rendered at the page's natural pixel size;
+     we scale the stage with CSS so the viewport fits without re-rendering. */
+  flex-shrink: 0;
+  outline: 0 dashed transparent;
+  transition: outline-color .12s;
+}
+.page-stage.sig-dragover { outline: 3px dashed #58a6ff; outline-offset: -3px; }
+
+.page-stage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* Signature placed on the page */
+.sig-placed {
+  position: absolute;
+  /* Width is set inline (as % of page width). Height is auto (preserves aspect ratio). */
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  /* No background — the inner image is the visual. The dashed border only appears on hover/selected. */
+  border: 1px dashed transparent;
+}
+.sig-placed:hover { border-color: rgba(88,166,255,.5); }
+.sig-placed.selected { border-color: #58a6ff; cursor: grabbing; }
+.sig-placed.dragging { cursor: grabbing; }
+.sig-placed img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  /* Multiply blend so the white background of a typed signature disappears on white paper. */
+  mix-blend-mode: multiply;
+}
+
+/* Resize handle (bottom-right) */
+.sig-placed .resize-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  background: #58a6ff;
+  border: 2px solid #0f1117;
+  border-radius: 50%;
+  display: none;
+  cursor: nwse-resize;
+}
+.sig-placed.selected .resize-handle { display: block; }
+
+/* Delete button (top-right). Override the page's default button padding and
+   use an SVG × so the glyph is geometrically centered (text-based × glyphs
+   often sit off-center because of font baseline metrics). */
+.sig-placed .delete-handle {
+  position: absolute;
+  right: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  background: #b3403c;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  font: inherit;
+  line-height: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+}
+.sig-placed .delete-handle:hover { background: #cf4d49; }
+.sig-placed.selected .delete-handle { display: flex; }
+.sig-placed .delete-handle svg {
+  width: 9px;
+  height: 9px;
+  display: block;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Right sidebar: signatures */
+aside.sigs-nav {
+  background: #161b22;
+  border-left: 1px solid #21262d;
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.sigs-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: .55rem;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.sig-card {
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  background: #0d1117;
+  padding: .35rem .4rem .35rem;
+  cursor: pointer;
+  position: relative;
+  transition: border-color .15s, background .15s;
+}
+.sig-card:hover { border-color: #58a6ff; background: #1c2230; }
+.sig-card.dragging { opacity: .35; }
+/* The insertion line during reorder lives on the receiving card's top or bottom edge. */
+.sig-card.drop-before { box-shadow: 0 -2px 0 #58a6ff; }
+.sig-card.drop-after { box-shadow: 0 2px 0 #58a6ff; }
+
+.sig-card-preview {
+  background: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  overflow: hidden;
+}
+.sig-card-preview img {
+  max-width: 100%;
+  max-height: 60px;
+  display: block;
+}
+
+.sig-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: .7rem;
+  color: #8b949e;
+  gap: .25rem;
+}
+
+.sig-card-meta .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.sig-card-meta .kind {
+  font-size: .6rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6e7681;
+}
+.sig-card-del {
+  background: transparent;
+  border: none;
+  color: #6e7681;
+  padding: 0 3px;
+  font-size: .85rem;
+  line-height: 1;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sig-card-del:hover { color: #ff7b72; background: rgba(248,81,73,.12); }
+
+.sig-add-btn {
+  background: #1c2230;
+  border: 1px dashed #30363d;
+  color: #79b8ff;
+  font-weight: 600;
+  padding: .55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  font-size: .82rem;
+}
+.sig-add-btn:hover { border-color: #58a6ff; background: #1c2945; }
+
+.sigs-hint {
+  padding: 0 .65rem .75rem;
+  font-size: .7rem;
+  color: #6e7681;
+  line-height: 1.4;
+}
+
+/* Empty initial drop zone */
+.drop-zone {
+  flex: 1;
+  margin: 2rem;
+  background: #161b22;
+  border: 2px dashed #30363d;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  gap: .4rem;
+  padding: 2rem;
+  transition: border-color .15s, background .15s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: #58a6ff;
+  background: #1c2230;
+}
+.drop-zone strong { font-size: 1.1rem; color: #c9d1d9; }
+.drop-zone p { color: #8b949e; font-size: .9rem; max-width: 28rem; }
+.drop-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+
+.drop-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(15, 17, 23, .85);
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed #58a6ff;
+  pointer-events: none;
+}
+.drop-overlay.visible { display: flex; }
+.drop-overlay span {
+  color: #58a6ff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Floating "Apply to all pages" — appears after a signature is placed/moved
+   so the action is right under the user's cursor, then auto-hides. */
+.floating-action {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translate(-50%, 30px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .18s ease-out, opacity .18s ease-out;
+  z-index: 50;
+}
+.floating-action.visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.floating-action button {
+  background: #1f6feb;
+  border: 1px solid #388bfd;
+  color: #fff;
+  font-weight: 600;
+  font-size: .85rem;
+  padding: .55rem 1rem;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5), 0 0 0 1px rgba(56,139,253,.25);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  white-space: nowrap;
+}
+.floating-action button:hover { background: #388bfd; }
+.floating-action button:active { background: #1158c7; }
+.floating-action button svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.floating-action .dismiss {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,.7);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  margin-left: .15rem;
+  box-shadow: none;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 18px; height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.floating-action .dismiss:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+/* Status banner */
+.status-banner {
+  position: fixed;
+  left: 50%;
+  top: 1.1rem;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .6rem 1rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  box-shadow: 0 6px 20px rgba(0,0,0,.6);
+  display: none;
+  z-index: 200;
+  min-width: 320px;
+}
+.status-banner.visible { display: block; }
+.status-banner .progress {
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+.status-banner .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  width: 0;
+  transition: width .2s;
+}
+
+.error-banner {
+  background: rgba(248,81,73,.12);
+  border-bottom: 1px solid rgba(248,81,73,.3);
+  color: #ff8b80;
+  padding: .5rem 1rem;
+  font-size: .82rem;
+  display: none;
+}
+.error-banner.visible { display: block; }
+
+/* Modal: add signature */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.visible { display: flex; }
+
+.modal {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  width: min(640px, 95vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,.5);
+}
+
+.modal-header {
+  padding: .85rem 1.1rem;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.modal-header .close-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 .25rem;
+}
+.modal-header .close-btn:hover { color: #c9d1d9; }
+
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #21262d;
+  background: #0d1117;
+}
+.modal-tab {
+  flex: 1;
+  padding: .65rem .8rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8b949e;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+}
+.modal-tab:hover { color: #c9d1d9; }
+.modal-tab.active { color: #79b8ff; border-bottom-color: #58a6ff; }
+.modal-tab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+
+.modal-body {
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  overflow-y: auto;
+}
+
+.tab-pane { display: none; }
+.tab-pane.active { display: flex; flex-direction: column; gap: .65rem; }
+
+.draw-canvas-wrap {
+  position: relative;
+  background: #fff;
+  border-radius: 6px;
+  overflow: hidden;
+  /* Subtle dotted-line baseline hint so users know where to draw */
+  background-image:
+    linear-gradient(to bottom, transparent calc(70% - 1px), rgba(0,0,0,.15) calc(70% - 1px), rgba(0,0,0,.15) 70%, transparent 70%);
+}
+.draw-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 220px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.draw-controls {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: .82rem;
+  color: #8b949e;
+  flex-wrap: wrap;
+}
+
+.draw-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+.draw-controls input[type=range] {
+  width: 120px;
+  accent-color: #58a6ff;
+}
+.draw-controls input[type=color] {
+  width: 26px;
+  height: 22px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.type-input {
+  width: 100%;
+  font-family: 'SigDancing', 'Brush Script MT', cursive;
+  font-size: 2.5rem;
+  background: #fff;
+  color: #111;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .5rem .85rem;
+  outline: none;
+  text-align: center;
+}
+.type-input:focus { border-color: #58a6ff; }
+
+.type-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #111;
+  border-radius: 6px;
+  min-height: 110px;
+  padding: 1rem;
+  font-size: 3.2rem;
+  text-align: center;
+  word-break: break-word;
+}
+
+.type-font-picker {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.type-font-picker button {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  padding: .25rem .55rem;
+  font-size: 1.1rem;
+  color: #c9d1d9;
+  cursor: pointer;
+  min-width: 3rem;
+}
+.type-font-picker button.active { border-color: #58a6ff; background: #1c2230; }
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+  padding: .75rem 1.1rem;
+  border-top: 1px solid #21262d;
+  background: #0d1117;
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Sign document</h1>
+</header>
+
+<div class="toolbar">
+  <button class="icon-btn upload-btn" id="btn-upload">
+    <svg viewBox="0 0 16 16"><path d="M8 11V3M5 6l3-3 3 3M3 13h10"/></svg>
+    <span id="upload-label">Upload PDF / image</span>
+    <input type="file" id="file-input" accept="image/*,.pdf,application/pdf">
+  </button>
+  <button class="icon-btn" id="btn-clear-page" disabled title="Remove all signatures from the current page">
+    <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    Clear page
+  </button>
+  <div class="sep"></div>
+  <span class="doc-name" id="doc-name"></span>
+  <span class="doc-pages" id="doc-pages"></span>
+  <div class="spacer"></div>
+  <button class="icon-btn btn-primary" id="btn-download" disabled title="Download the signed document">
+    <svg viewBox="0 0 16 16"><path d="M8 3v8M5 8l3 3 3-3M3 13h10"/></svg>
+    Download signed
+  </button>
+</div>
+
+<div class="error-banner" id="error-banner"></div>
+
+<div class="workspace" id="workspace">
+
+  <!-- Initial drop zone -->
+  <label class="drop-zone" id="drop-zone">
+    <strong>Drop a PDF or image here, or click to upload</strong>
+    <p>Everything stays in your browser. Add signatures from the right sidebar, drag them where you need them, then download a signed copy.</p>
+    <input type="file" id="file-input-zone" accept="image/*,.pdf,application/pdf">
+  </label>
+
+  <!-- Left sidebar: page thumbnails (hidden until a doc is loaded) -->
+  <aside class="pages-nav" id="pages-nav" style="display:none">
+    <div class="panel-title">Pages</div>
+    <div class="pages-list" id="pages-list"></div>
+  </aside>
+
+  <!-- Center viewer -->
+  <div class="viewer" id="viewer" style="display:none">
+    <div class="viewer-scroller" id="viewer-scroller">
+      <div class="page-stage" id="page-stage"></div>
+    </div>
+    <div class="floating-action" id="apply-all-float" role="dialog" aria-live="polite">
+      <button id="btn-apply-all" type="button" title="Copy signatures from this page to every page">
+        <svg viewBox="0 0 16 16"><path d="M3 4h7v7H3zM6 2h7v7"/></svg>
+        Apply to all <span id="apply-all-count"></span> pages
+        <span class="dismiss" id="apply-all-dismiss" title="Dismiss">×</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Right sidebar: signatures (always available) -->
+  <aside class="sigs-nav" id="sigs-nav">
+    <div class="panel-title">
+      <span>Signatures</span>
+    </div>
+    <div class="sigs-list" id="sigs-list"></div>
+    <div class="sigs-hint">Click to place on the page. Drag onto the page to add another.</div>
+  </aside>
+
+</div>
+
+<div class="drop-overlay" id="drop-overlay"><span>Drop to replace</span></div>
+
+<div class="status-banner" id="status-banner">
+  <span id="status-text">Working...</span>
+  <div class="progress"><div class="progress-fill" id="status-progress"></div></div>
+</div>
+
+<!-- Add signature modal -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <span id="modal-title">Add a signature</span>
+      <button class="close-btn" id="modal-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tab-draw" data-tab="draw">
+        <svg viewBox="0 0 16 16"><path d="M2 14l4-1 8-8-3-3-8 8-1 4z"/></svg>
+        Draw
+      </button>
+      <button class="modal-tab" id="tab-type" data-tab="type">
+        <svg viewBox="0 0 16 16"><path d="M3 5h10M8 5v9M5 14h6"/></svg>
+        Type
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Draw tab -->
+      <div class="tab-pane active" id="pane-draw">
+        <div class="draw-canvas-wrap">
+          <canvas id="draw-canvas"></canvas>
+        </div>
+        <div class="draw-controls">
+          <label>Color <input type="color" id="draw-color" value="#0a2540"></label>
+          <label>Thickness <input type="range" id="draw-width" min="1" max="8" step="1" value="3"></label>
+          <div class="spacer" style="flex:1"></div>
+          <button id="draw-clear">Clear</button>
+        </div>
+      </div>
+      <!-- Type tab -->
+      <div class="tab-pane" id="pane-type">
+        <input type="text" id="type-input" class="type-input" placeholder="Your name" autocomplete="off">
+        <div class="type-font-picker" id="type-font-picker"></div>
+        <div class="type-preview" id="type-preview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="modal-cancel">Cancel</button>
+      <button class="btn-primary" id="modal-save">Save signature</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+// ===== State =====
+const state = {
+  doc: null,  // { kind: 'pdf'|'image', name, pages: [{ canvas, width, height, signatures: [...] }] }
+  currentPage: 0,
+  signatures: [], // [{ id, kind: 'draw'|'type', dataUrl, label, ratio (w/h) }]
+  selectedSig: null, // { pageIdx, sigIdx } currently selected on canvas
+};
+
+const STORAGE_KEY = 'signdoc.signatures.v1';
+const CURSIVE_FONTS = [
+  // OFL fonts bundled in ./lib. System cursive fallback kicks in if @font-face fails to load.
+  { name: 'Dancing', stack: `'SigDancing', 'Snell Roundhand', cursive` },
+  { name: 'Caveat', stack: `'SigCaveat', 'Bradley Hand', cursive` },
+  { name: 'Pacifico', stack: `'SigPacifico', 'Brush Script MT', cursive` },
+  { name: 'Vibes', stack: `'SigGreatVibes', 'Apple Chancery', cursive` },
+];
+
+// ===== PDF.js =====
+let pdfjsLib = null;
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+// ===== Status / errors =====
+function showStatus(text, progress) {
+  $('status-banner').classList.add('visible');
+  $('status-text').textContent = text;
+  $('status-progress').style.width = `${(progress || 0) * 100}%`;
+}
+function hideStatus() {
+  $('status-banner').classList.remove('visible');
+  $('status-progress').style.width = '0%';
+}
+function showError(msg) {
+  const el = $('error-banner');
+  if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+// ===== Signatures storage =====
+function loadSignatures() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveSignatures() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.signatures));
+  } catch (e) {
+    showError(`Could not save signature: ${e.message || e}. localStorage may be full.`);
+  }
+}
+
+// ===== Doc loading =====
+const RENDER_SCALE = 2;       // Render PDF pages at 2x for crisp display & download.
+const THUMB_SCALE = 0.22;     // Thumbnail size relative to RENDER_SCALE.
+
+async function loadFile(file) {
+  showError(null);
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  state.selectedSig = null;
+  state.currentPage = 0;
+  try {
+    if (isPdf) await loadPdf(file);
+    else await loadImage(file);
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    showError(`Could not load ${file.name}: ${e.message || e}`);
+    hideStatus();
+  }
+}
+
+async function loadPdf(file) {
+  showStatus(`Loading ${file.name}...`, 0);
+  const lib = await loadPdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await lib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    showStatus(`Rendering ${file.name} — page ${i} / ${pdf.numPages}`, (i - 1) / pdf.numPages);
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: RENDER_SCALE });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pages.push({
+      canvas,
+      width: canvas.width,
+      height: canvas.height,
+      signatures: [],
+    });
+  }
+  state.doc = { kind: 'pdf', name: file.name, pages };
+  hideStatus();
+}
+
+async function loadImage(file) {
+  showStatus(`Loading ${file.name}...`, 0.5);
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = () => rej(new Error('Could not decode image'));
+      im.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    state.doc = {
+      kind: 'image',
+      name: file.name,
+      pages: [{ canvas, width: canvas.width, height: canvas.height, signatures: [] }],
+    };
+    hideStatus();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// ===== Render =====
+function renderAll() {
+  if (!state.doc) {
+    $('drop-zone').style.display = '';
+    $('pages-nav').style.display = 'none';
+    $('viewer').style.display = 'none';
+    $('doc-name').textContent = '';
+    $('doc-pages').textContent = '';
+    refreshToolbar();
+    renderSigsList();
+    return;
+  }
+  $('drop-zone').style.display = 'none';
+  $('pages-nav').style.display = state.doc.pages.length > 1 ? '' : 'none';
+  $('viewer').style.display = '';
+  $('doc-name').textContent = state.doc.name;
+  $('upload-label').textContent = 'Replace document';
+  updatePageIndicator();
+  renderThumbs();
+  renderPage();
+  renderSigsList();
+  refreshToolbar();
+}
+
+function renderThumbs() {
+  const list = $('pages-list');
+  list.textContent = '';
+  state.doc.pages.forEach((page, idx) => {
+    const card = document.createElement('div');
+    card.className = 'page-thumb' + (idx === state.currentPage ? ' active' : '');
+    const wrap = document.createElement('div');
+    wrap.className = 'page-thumb-canvas-wrap';
+    // Render a small thumb canvas — cheaper to draw once into a dedicated bitmap
+    // than to rely on CSS scaling of a 2× canvas (those become huge in the DOM).
+    const thumb = document.createElement('canvas');
+    const tw = Math.max(80, Math.round(page.width * THUMB_SCALE));
+    const th = Math.max(60, Math.round(page.height * THUMB_SCALE));
+    thumb.width = tw;
+    thumb.height = th;
+    const tctx = thumb.getContext('2d');
+    tctx.drawImage(page.canvas, 0, 0, tw, th);
+    wrap.appendChild(thumb);
+    card.appendChild(wrap);
+    const num = document.createElement('div');
+    num.className = 'page-thumb-num';
+    num.textContent = String(idx + 1);
+    if (page.signatures.length) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = String(page.signatures.length);
+      num.appendChild(badge);
+    }
+    card.appendChild(num);
+    card.addEventListener('click', () => {
+      state.currentPage = idx;
+      state.selectedSig = null;
+      applyAllDismissed = false;
+      hideApplyAllFloat();
+      renderPage();
+      renderThumbs();
+      refreshToolbar();
+      updatePageIndicator();
+    });
+    list.appendChild(card);
+  });
+}
+
+function renderPage() {
+  if (!state.doc) return;
+  const page = state.doc.pages[state.currentPage];
+  const stage = $('page-stage');
+  stage.textContent = '';
+  // Size the stage to fit within the viewer area while preserving aspect.
+  const scroller = $('viewer-scroller');
+  const padding = 48; // matches CSS padding (1.5rem each side)
+  const maxW = Math.max(200, scroller.clientWidth - padding);
+  const maxH = Math.max(200, scroller.clientHeight - padding);
+  const aspect = page.width / page.height;
+  let dispW = maxW;
+  let dispH = dispW / aspect;
+  if (dispH > maxH) { dispH = maxH; dispW = dispH * aspect; }
+  stage.style.width = `${dispW}px`;
+  stage.style.height = `${dispH}px`;
+  // Append the page canvas (referenced — not cloned, so it stays a live element
+  // we can also render to PDF directly from later).
+  stage.appendChild(page.canvas);
+  // Now overlay each placed signature as a positioned <div><img>.
+  page.signatures.forEach((sig, sigIdx) => {
+    stage.appendChild(makePlacedEl(sig, sigIdx));
+  });
+}
+
+function makePlacedEl(placed, sigIdx) {
+  const sig = state.signatures.find(s => s.id === placed.sigId);
+  if (!sig) return document.createElement('span'); // signature was deleted from library — skip
+  const el = document.createElement('div');
+  el.className = 'sig-placed';
+  if (state.selectedSig && state.selectedSig.pageIdx === state.currentPage && state.selectedSig.sigIdx === sigIdx) {
+    el.classList.add('selected');
+  }
+  // Positions stored as fractions of page dimensions.
+  el.style.left = `${placed.xFrac * 100}%`;
+  el.style.top = `${placed.yFrac * 100}%`;
+  el.style.width = `${placed.wFrac * 100}%`;
+  const img = document.createElement('img');
+  img.src = sig.dataUrl;
+  img.draggable = false;
+  el.appendChild(img);
+  const handle = document.createElement('div');
+  handle.className = 'resize-handle';
+  el.appendChild(handle);
+  const del = document.createElement('button');
+  del.className = 'delete-handle';
+  del.type = 'button';
+  del.title = 'Remove signature';
+  del.innerHTML = '<svg viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6"/></svg>';
+  el.appendChild(del);
+
+  el.addEventListener('pointerdown', (e) => onSigPointerDown(e, el, handle, del, sigIdx, placed));
+  return el;
+}
+
+function onSigPointerDown(e, el, handle, del, sigIdx, placed) {
+  e.stopPropagation();
+  if (e.target === del) {
+    state.doc.pages[state.currentPage].signatures.splice(sigIdx, 1);
+    state.selectedSig = null;
+    renderPage();
+    renderThumbs();
+    refreshToolbar();
+    return;
+  }
+  state.selectedSig = { pageIdx: state.currentPage, sigIdx };
+  // Re-render to add selection class.
+  renderPage();
+  // Re-grab the new element corresponding to this placed signature (rerender wiped el).
+  const fresh = $('page-stage').querySelectorAll('.sig-placed')[sigIdx];
+  if (!fresh) return;
+  const stage = $('page-stage');
+  const stageRect = stage.getBoundingClientRect();
+  const isResize = e.target.classList.contains('resize-handle');
+  fresh.setPointerCapture(e.pointerId);
+  if (isResize) {
+    const startX = e.clientX;
+    const startWFrac = placed.wFrac;
+    const startW = startWFrac * stageRect.width;
+    const move = (ev) => {
+      const dx = ev.clientX - startX;
+      const newW = Math.max(40, startW + dx);
+      placed.wFrac = Math.min(0.98, newW / stageRect.width);
+      // Keep top-left anchored; clamp so the new right edge stays in-page.
+      placed.xFrac = Math.min(placed.xFrac, 1 - placed.wFrac);
+      fresh.style.left = `${placed.xFrac * 100}%`;
+      fresh.style.width = `${placed.wFrac * 100}%`;
+    };
+    const up = () => {
+      fresh.removeEventListener('pointermove', move);
+      fresh.removeEventListener('pointerup', up);
+      renderThumbs();
+      applyAllDismissed = false;
+      showApplyAllFloat();
+    };
+    fresh.addEventListener('pointermove', move);
+    fresh.addEventListener('pointerup', up);
+  } else {
+    const sigRect = fresh.getBoundingClientRect();
+    const grabDx = e.clientX - sigRect.left;
+    const grabDy = e.clientY - sigRect.top;
+    fresh.classList.add('dragging');
+    const move = (ev) => {
+      // Compute new top-left fraction. Clamp so the box stays fully inside the page.
+      const newLeft = ev.clientX - stageRect.left - grabDx;
+      const newTop = ev.clientY - stageRect.top - grabDy;
+      const maxLeft = stageRect.width - sigRect.width;
+      const maxTop = stageRect.height - sigRect.height;
+      const clampedLeft = Math.max(0, Math.min(maxLeft, newLeft));
+      const clampedTop = Math.max(0, Math.min(maxTop, newTop));
+      placed.xFrac = clampedLeft / stageRect.width;
+      placed.yFrac = clampedTop / stageRect.height;
+      fresh.style.left = `${placed.xFrac * 100}%`;
+      fresh.style.top = `${placed.yFrac * 100}%`;
+    };
+    const up = () => {
+      fresh.classList.remove('dragging');
+      fresh.removeEventListener('pointermove', move);
+      fresh.removeEventListener('pointerup', up);
+      renderThumbs();
+      applyAllDismissed = false;
+      showApplyAllFloat();
+    };
+    fresh.addEventListener('pointermove', move);
+    fresh.addEventListener('pointerup', up);
+  }
+}
+
+function updatePageIndicator() {
+  if (!state.doc) { $('doc-pages').textContent = ''; return; }
+  const n = state.doc.pages.length;
+  if (n === 1) { $('doc-pages').textContent = '1 page'; return; }
+  $('doc-pages').textContent = `${state.currentPage + 1} / ${n} pages`;
+}
+
+function refreshToolbar() {
+  const hasDoc = !!state.doc;
+  const hasAnySig = hasDoc && state.doc.pages.some(p => p.signatures.length);
+  const currentHasSigs = hasDoc && state.doc.pages[state.currentPage].signatures.length > 0;
+  $('btn-download').disabled = !hasAnySig;
+  $('btn-clear-page').disabled = !currentHasSigs;
+}
+
+// ===== Floating apply-to-all =====
+// Surfaced right after the user places or moves a signature so the next likely
+// action is one click away. Auto-dismisses on apply, on page change, when no
+// signatures remain on the current page, or when the user clicks the ×.
+let applyAllDismissed = false;
+function showApplyAllFloat() {
+  if (!state.doc || applyAllDismissed) return;
+  const page = state.doc.pages[state.currentPage];
+  if (!page.signatures.length || state.doc.pages.length < 2) return;
+  $('apply-all-count').textContent = state.doc.pages.length;
+  $('apply-all-float').classList.add('visible');
+}
+function hideApplyAllFloat() {
+  $('apply-all-float').classList.remove('visible');
+}
+
+// ===== Right sidebar: signature library =====
+function renderSigsList() {
+  const list = $('sigs-list');
+  list.textContent = '';
+  state.signatures.forEach((sig, idx) => {
+    const card = document.createElement('div');
+    card.className = 'sig-card';
+    card.title = 'Click to place (replaces any existing). Drag onto the page to add another, or drag onto another card to reorder.';
+    card.draggable = true;
+    card.dataset.idx = String(idx);
+    const prev = document.createElement('div');
+    prev.className = 'sig-card-preview';
+    const img = document.createElement('img');
+    img.src = sig.dataUrl;
+    // Prevent the <img>'s native drag (would dispatch a separate dragstart that
+    // doesn't carry our sig-card payload).
+    img.draggable = false;
+    prev.appendChild(img);
+    card.appendChild(prev);
+    const meta = document.createElement('div');
+    meta.className = 'sig-card-meta';
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = sig.label || (sig.kind === 'draw' ? 'Drawn' : 'Typed');
+    const kind = document.createElement('span');
+    kind.className = 'kind';
+    kind.textContent = sig.kind === 'draw' ? 'Drawn' : 'Typed';
+    const del = document.createElement('button');
+    del.className = 'sig-card-del';
+    del.title = 'Delete this signature from your library';
+    del.textContent = '×';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!confirm('Remove this signature from your library? Already-placed copies stay until the document is reloaded.')) return;
+      state.signatures = state.signatures.filter(s => s.id !== sig.id);
+      saveSignatures();
+      renderSigsList();
+    });
+    meta.appendChild(label);
+    meta.appendChild(kind);
+    meta.appendChild(del);
+    card.appendChild(meta);
+    // Click places the signature. Drag events don't fire click on drop, so the
+    // two interactions coexist cleanly.
+    card.addEventListener('click', () => placeSignature(sig));
+    attachSigCardDnd(card, idx);
+    list.appendChild(card);
+  });
+  const add = document.createElement('button');
+  add.className = 'sig-add-btn';
+  add.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg> Add signature`;
+  add.addEventListener('click', () => openModal('draw'));
+  list.appendChild(add);
+}
+
+// Native HTML5 drag-and-drop for reordering the signature library cards.
+// Source = drag start; target = the card under the cursor during dragover.
+// We mark the target with .drop-before / .drop-after so the user sees where the
+// signature will land, then splice the array on drop.
+let dragSrcIdx = -1;
+function attachSigCardDnd(card, idx) {
+  card.addEventListener('dragstart', (e) => {
+    dragSrcIdx = idx;
+    card.classList.add('dragging');
+    // Some browsers require setData for a drag to actually start.
+    try { e.dataTransfer.setData('text/plain', String(idx)); } catch {}
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    clearDropMarkers();
+    dragSrcIdx = -1;
+  });
+  card.addEventListener('dragover', (e) => {
+    if (dragSrcIdx < 0 || dragSrcIdx === idx) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = card.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    clearDropMarkers();
+    card.classList.add(before ? 'drop-before' : 'drop-after');
+  });
+  card.addEventListener('dragleave', (e) => {
+    // Only clear when actually leaving the card (not when crossing into a child).
+    if (e.target === card) card.classList.remove('drop-before', 'drop-after');
+  });
+  card.addEventListener('drop', (e) => {
+    if (dragSrcIdx < 0 || dragSrcIdx === idx) return;
+    e.preventDefault();
+    const rect = card.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    const from = dragSrcIdx;
+    // Insertion index in the *original* array. When dragging downward, removing
+    // first shifts the target index by one — handle that.
+    let to = idx + (before ? 0 : 1);
+    if (from < to) to -= 1;
+    if (from === to) { clearDropMarkers(); return; }
+    const [moved] = state.signatures.splice(from, 1);
+    state.signatures.splice(to, 0, moved);
+    saveSignatures();
+    clearDropMarkers();
+    renderSigsList();
+  });
+}
+
+function clearDropMarkers() {
+  for (const el of document.querySelectorAll('.sig-card.drop-before, .sig-card.drop-after')) {
+    el.classList.remove('drop-before', 'drop-after');
+  }
+}
+
+// mode = 'replace' (click from sidebar): wipe existing sigs on the page and place
+//                                         one at the bottom-right default.
+// mode = 'add'     (drop from sidebar):   keep existing sigs, place the new one
+//                                         centered on the drop point if provided.
+function placeSignature(sig, mode = 'replace', dropPt = null) {
+  if (!state.doc) {
+    showError('Upload a PDF or image before placing signatures.');
+    return;
+  }
+  const page = state.doc.pages[state.currentPage];
+  // 12% of page width is roughly a hand-written signature on a printed page —
+  // small enough to feel placed *into* a signature line rather than stamped over.
+  const wFrac = 0.12;
+  const hFracEst = (wFrac * page.width) / sig.ratio / page.height;
+  let xFrac, yFrac;
+  if (dropPt) {
+    // Center the signature on the drop point, then clamp within the page.
+    xFrac = Math.max(0, Math.min(1 - wFrac, dropPt.xFrac - wFrac / 2));
+    yFrac = Math.max(0, Math.min(1 - hFracEst, dropPt.yFrac - hFracEst / 2));
+  } else {
+    // Default bottom-right corner.
+    xFrac = 1 - wFrac - 0.025;
+    yFrac = Math.max(0.05, 1 - hFracEst - 0.03);
+  }
+  if (mode === 'replace') page.signatures = [];
+  page.signatures.push({ sigId: sig.id, xFrac, yFrac, wFrac });
+  state.selectedSig = { pageIdx: state.currentPage, sigIdx: page.signatures.length - 1 };
+  // Reset the dismiss flag — placing a new signature is a fresh opportunity to apply-to-all.
+  applyAllDismissed = false;
+  renderPage();
+  renderThumbs();
+  refreshToolbar();
+  showApplyAllFloat();
+}
+
+// ===== Modal: add signature =====
+let activeTab = 'draw';
+
+function openModal(initialTab = 'draw') {
+  activeTab = initialTab;
+  $('modal-backdrop').classList.add('visible');
+  switchTab(initialTab);
+  // Size the draw canvas now that the modal is laid out — at page load it's
+  // hidden and getBoundingClientRect() returns 0×0, which would leave the canvas unusable.
+  initDrawCanvas();
+  $('type-input').value = '';
+  selectFont(0);
+  updateTypePreview();
+  setTimeout(() => {
+    if (activeTab === 'type') $('type-input').focus();
+  }, 50);
+}
+
+function closeModal() {
+  $('modal-backdrop').classList.remove('visible');
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  for (const t of document.querySelectorAll('.modal-tab')) {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  }
+  for (const p of document.querySelectorAll('.tab-pane')) {
+    p.classList.toggle('active', p.id === `pane-${tab}`);
+  }
+  if (tab === 'type') $('type-input').focus();
+}
+
+// ===== Draw signature =====
+let drawCtx = null;
+let drawing = false;
+let drawHasStrokes = false;
+let lastPt = null;
+let drawBounds = null; // { minX, maxX, minY, maxY } for cropping on save
+
+let drawCanvasInited = false;
+function initDrawCanvas() {
+  const canvas = $('draw-canvas');
+  // Match backing-store resolution to display size for crisp lines on HiDPI.
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  // Fall back to sensible defaults if the modal isn't laid out yet — but openModal
+  // calls us *after* opening, so rect should be non-zero in normal use.
+  const w = rect.width || 600;
+  const h = rect.height || 220;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  drawCtx = canvas.getContext('2d');
+  drawCtx.setTransform(1, 0, 0, 1, 0, 0);
+  drawCtx.scale(dpr, dpr);
+  drawCtx.lineCap = 'round';
+  drawCtx.lineJoin = 'round';
+  resetDrawCanvas();
+  if (drawCanvasInited) return;
+  drawCanvasInited = true;
+  canvas.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    drawing = true;
+    const p = pointInCanvas(canvas, e);
+    lastPt = p;
+    drawCtx.strokeStyle = $('draw-color').value;
+    drawCtx.lineWidth = parseFloat($('draw-width').value);
+    drawCtx.beginPath();
+    drawCtx.moveTo(p.x, p.y);
+    drawCtx.lineTo(p.x + .01, p.y + .01); // a dot, in case user only taps
+    drawCtx.stroke();
+    updateBounds(p);
+    drawHasStrokes = true;
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drawing) return;
+    const p = pointInCanvas(canvas, e);
+    drawCtx.beginPath();
+    drawCtx.moveTo(lastPt.x, lastPt.y);
+    drawCtx.lineTo(p.x, p.y);
+    drawCtx.stroke();
+    lastPt = p;
+    updateBounds(p);
+  });
+  canvas.addEventListener('pointerup', () => { drawing = false; });
+  canvas.addEventListener('pointercancel', () => { drawing = false; });
+  $('draw-clear').addEventListener('click', resetDrawCanvas);
+}
+
+function pointInCanvas(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function updateBounds(p) {
+  if (!drawBounds) drawBounds = { minX: p.x, maxX: p.x, minY: p.y, maxY: p.y };
+  else {
+    if (p.x < drawBounds.minX) drawBounds.minX = p.x;
+    if (p.x > drawBounds.maxX) drawBounds.maxX = p.x;
+    if (p.y < drawBounds.minY) drawBounds.minY = p.y;
+    if (p.y > drawBounds.maxY) drawBounds.maxY = p.y;
+  }
+}
+
+function resetDrawCanvas() {
+  if (!drawCtx) return;
+  const canvas = $('draw-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  drawCtx.save();
+  drawCtx.setTransform(1, 0, 0, 1, 0, 0);
+  drawCtx.clearRect(0, 0, canvas.width, canvas.height);
+  drawCtx.fillStyle = '#fff';
+  drawCtx.fillRect(0, 0, canvas.width, canvas.height);
+  drawCtx.restore();
+  drawHasStrokes = false;
+  drawBounds = null;
+}
+
+function exportDrawSignature() {
+  if (!drawHasStrokes || !drawBounds) return null;
+  const src = $('draw-canvas');
+  // Crop with a small padding so the saved signature is sized to the strokes.
+  const pad = 12;
+  const dpr = window.devicePixelRatio || 1;
+  const minX = Math.max(0, Math.floor((drawBounds.minX - pad) * dpr));
+  const minY = Math.max(0, Math.floor((drawBounds.minY - pad) * dpr));
+  const maxX = Math.min(src.width, Math.ceil((drawBounds.maxX + pad) * dpr));
+  const maxY = Math.min(src.height, Math.ceil((drawBounds.maxY + pad) * dpr));
+  const w = Math.max(8, maxX - minX);
+  const h = Math.max(8, maxY - minY);
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  // Keep the white background so the multiply-blend on the page hides it; works for both
+  // light and dark ink colors without producing a translucent halo.
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, w, h);
+  octx.drawImage(src, minX, minY, w, h, 0, 0, w, h);
+  return { dataUrl: out.toDataURL('image/png'), ratio: w / h };
+}
+
+// ===== Type signature =====
+let selectedFontIdx = 0;
+
+function initTypePicker() {
+  const picker = $('type-font-picker');
+  picker.textContent = '';
+  CURSIVE_FONTS.forEach((f, i) => {
+    const btn = document.createElement('button');
+    btn.style.fontFamily = f.stack;
+    btn.textContent = 'Abc';
+    btn.title = f.name;
+    if (i === 0) btn.classList.add('active');
+    btn.addEventListener('click', () => selectFont(i));
+    picker.appendChild(btn);
+  });
+}
+
+function selectFont(idx) {
+  selectedFontIdx = idx;
+  for (const [i, b] of [...$('type-font-picker').children].entries()) {
+    b.classList.toggle('active', i === idx);
+  }
+  const stack = CURSIVE_FONTS[idx].stack;
+  $('type-input').style.fontFamily = stack;
+  $('type-preview').style.fontFamily = stack;
+  updateTypePreview();
+}
+
+function updateTypePreview() {
+  const text = $('type-input').value.trim();
+  $('type-preview').textContent = text || 'Preview';
+  $('type-preview').style.opacity = text ? '1' : '0.4';
+}
+
+async function exportTypeSignature() {
+  const text = $('type-input').value.trim();
+  if (!text) return null;
+  const stack = CURSIVE_FONTS[selectedFontIdx].stack;
+  // Render to a canvas large enough for crisp scaling. Pick font size first, then measure.
+  const fontSize = 160;
+  // Canvas font rendering doesn't trigger @font-face loads — explicitly load
+  // the chosen font at the size we'll draw at, otherwise the first save would
+  // get a sans-serif fallback even though the on-screen preview is cursive.
+  try { await document.fonts.load(`${fontSize}px ${stack}`, text); } catch {}
+  const measureCanvas = document.createElement('canvas');
+  const mctx = measureCanvas.getContext('2d');
+  mctx.font = `${fontSize}px ${stack}`;
+  const metrics = mctx.measureText(text);
+  // Cursive fonts often have ascenders/descenders well beyond fontSize. Pad generously.
+  const ascent = metrics.actualBoundingBoxAscent || fontSize * 0.85;
+  const descent = metrics.actualBoundingBoxDescent || fontSize * 0.35;
+  const pad = Math.round(fontSize * 0.15);
+  const w = Math.ceil(metrics.width) + pad * 2;
+  const h = Math.ceil(ascent + descent) + pad * 2;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#0a2540';
+  ctx.font = `${fontSize}px ${stack}`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, pad, pad + ascent);
+  return { dataUrl: out.toDataURL('image/png'), ratio: w / h, label: text };
+}
+
+async function saveModalSignature() {
+  let payload;
+  if (activeTab === 'draw') payload = exportDrawSignature();
+  else payload = await exportTypeSignature();
+  if (!payload) {
+    showError(activeTab === 'draw' ? 'Draw a signature first.' : 'Type something first.');
+    return;
+  }
+  showError(null);
+  const sig = {
+    id: 'sig_' + Math.random().toString(36).slice(2, 10),
+    kind: activeTab,
+    dataUrl: payload.dataUrl,
+    ratio: payload.ratio,
+    label: payload.label || '',
+  };
+  state.signatures.push(sig);
+  saveSignatures();
+  renderSigsList();
+  closeModal();
+  // One-click feel: auto-place the new signature on the current page when a doc is open.
+  if (state.doc) placeSignature(sig);
+}
+
+// ===== Apply to all / clear page =====
+$('btn-apply-all').addEventListener('click', () => {
+  if (!state.doc) return;
+  const page = state.doc.pages[state.currentPage];
+  if (!page.signatures.length) return;
+  // Replace each other page's signatures with a copy of this page's signatures.
+  // Common case: place once at bottom-right, then apply to all pages.
+  for (let i = 0; i < state.doc.pages.length; i++) {
+    if (i === state.currentPage) continue;
+    state.doc.pages[i].signatures = page.signatures.map(s => ({ ...s }));
+  }
+  applyAllDismissed = true;
+  hideApplyAllFloat();
+  renderThumbs();
+  refreshToolbar();
+});
+
+$('apply-all-dismiss').addEventListener('click', (e) => {
+  // The × is inside the button; stop propagation so the apply-all action doesn't run.
+  e.stopPropagation();
+  applyAllDismissed = true;
+  hideApplyAllFloat();
+});
+
+$('btn-clear-page').addEventListener('click', () => {
+  if (!state.doc) return;
+  state.doc.pages[state.currentPage].signatures = [];
+  state.selectedSig = null;
+  hideApplyAllFloat();
+  renderPage();
+  renderThumbs();
+  refreshToolbar();
+});
+
+// ===== Download signed =====
+
+// Compose a final canvas per page (base + signatures drawn at their fractional positions)
+// then assemble a PDF where every page is a JPEG of that canvas. Keeps things simple:
+// the output is a flattened image-PDF, but signatures travel with the document.
+async function buildSignedPdf() {
+  if (!state.doc) return null;
+  showStatus('Building signed PDF...', 0);
+  const pageImages = [];
+  for (let i = 0; i < state.doc.pages.length; i++) {
+    showStatus(`Flattening page ${i + 1} / ${state.doc.pages.length}`, i / state.doc.pages.length);
+    const composed = await composePageCanvas(state.doc.pages[i]);
+    const jpegBlob = await new Promise(res => composed.toBlob(res, 'image/jpeg', 0.92));
+    const bytes = new Uint8Array(await jpegBlob.arrayBuffer());
+    pageImages.push({ bytes, width: composed.width, height: composed.height });
+    // Yield to keep UI responsive.
+    await new Promise(r => requestAnimationFrame(r));
+  }
+  showStatus('Assembling PDF...', 0.95);
+  const pdfBytes = assemblePdfFromJpegs(pageImages);
+  hideStatus();
+  return pdfBytes;
+}
+
+async function composePageCanvas(page) {
+  // Use the already-rendered page canvas as base. Draw each signature on top
+  // at its fractional position. Signatures are stored as PNG data URLs.
+  const out = document.createElement('canvas');
+  out.width = page.width;
+  out.height = page.height;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(page.canvas, 0, 0);
+  for (const placed of page.signatures) {
+    const sig = state.signatures.find(s => s.id === placed.sigId);
+    if (!sig) continue;
+    const img = await loadDataUrlImage(sig.dataUrl);
+    const w = placed.wFrac * page.width;
+    const h = w / sig.ratio;
+    const x = placed.xFrac * page.width;
+    const y = placed.yFrac * page.height;
+    // Multiply blend so a white background fades into the page (matches preview).
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.drawImage(img, x, y, w, h);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  return out;
+}
+
+function loadDataUrlImage(dataUrl) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error('Could not decode signature image'));
+    img.src = dataUrl;
+  });
+}
+
+// ===== Minimal PDF assembler =====
+// Builds a PDF from a list of JPEG images, one image per page, page size matches image
+// pixel dimensions (treated as PDF points). For a signing tool this is the simplest way
+// to produce a self-contained, tamper-evident signed copy without a heavy PDF library.
+function assemblePdfFromJpegs(images) {
+  const objects = []; // each: Uint8Array — the body (between "N 0 obj\n" and "\nendobj")
+  // We'll allocate object numbers in order:
+  //   1  = Catalog
+  //   2  = Pages
+  //   For each image i (0-based): 3 + i*3 = image XObject, 4 + i*3 = page contents stream, 5 + i*3 = page
+  const nImg = images.length;
+  const pageIds = [];
+  for (let i = 0; i < nImg; i++) pageIds.push(5 + i * 3);
+
+  // 1: Catalog
+  objects[1] = encodeText(`<< /Type /Catalog /Pages 2 0 R >>`);
+  // 2: Pages
+  const kids = pageIds.map(id => `${id} 0 R`).join(' ');
+  objects[2] = encodeText(`<< /Type /Pages /Kids [${kids}] /Count ${nImg} >>`);
+
+  // Per-page objects.
+  for (let i = 0; i < nImg; i++) {
+    const im = images[i];
+    const imgId = 3 + i * 3;
+    const contentId = 4 + i * 3;
+    const pageId = 5 + i * 3;
+    // Image XObject
+    const imgDict = `<< /Type /XObject /Subtype /Image /Width ${im.width} /Height ${im.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>`;
+    objects[imgId] = concatBytes(
+      encodeText(imgDict + '\nstream\n'),
+      im.bytes,
+      encodeText('\nendstream'),
+    );
+    // Content stream: place image to fill the page, in user-units == pixel.
+    const contentStream = `q\n${im.width} 0 0 ${im.height} 0 0 cm\n/Im0 Do\nQ\n`;
+    const contentBytes = encodeText(contentStream);
+    objects[contentId] = concatBytes(
+      encodeText(`<< /Length ${contentBytes.length} >>\nstream\n`),
+      contentBytes,
+      encodeText('\nendstream'),
+    );
+    // Page object
+    const pageDict = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${im.width} ${im.height}] /Resources << /XObject << /Im0 ${imgId} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${contentId} 0 R >>`;
+    objects[pageId] = encodeText(pageDict);
+  }
+
+  // Serialize.
+  const chunks = [];
+  let offset = 0;
+  const xref = []; // index: objectId -> byte offset
+
+  const header = encodeText('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  chunks.push(header); offset += header.length;
+
+  for (let id = 1; id < objects.length; id++) {
+    const body = objects[id];
+    if (!body) continue;
+    xref[id] = offset;
+    const head = encodeText(`${id} 0 obj\n`);
+    const tail = encodeText(`\nendobj\n`);
+    chunks.push(head); offset += head.length;
+    chunks.push(body); offset += body.length;
+    chunks.push(tail); offset += tail.length;
+  }
+
+  const xrefOffset = offset;
+  let xrefStr = `xref\n0 ${objects.length}\n`;
+  xrefStr += '0000000000 65535 f \n';
+  for (let id = 1; id < objects.length; id++) {
+    const o = xref[id] || 0;
+    xrefStr += `${o.toString().padStart(10, '0')} 00000 n \n`;
+  }
+  xrefStr += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  chunks.push(encodeText(xrefStr));
+
+  return concatBytes(...chunks);
+}
+
+function encodeText(s) {
+  // PDF dictionaries use Latin-1 for the structure; we keep header bytes in [128..255] as-is.
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+  return out;
+}
+
+function concatBytes(...parts) {
+  let n = 0;
+  for (const p of parts) n += p.length;
+  const out = new Uint8Array(n);
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+$('btn-download').addEventListener('click', async () => {
+  try {
+    const bytes = await buildSignedPdf();
+    if (!bytes) return;
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = state.doc.name.replace(/\.[^.]+$/, '') || 'document';
+    a.href = url;
+    a.download = `${base}-signed.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    console.error(e);
+    showError(`Could not build signed PDF: ${e.message || e}`);
+    hideStatus();
+  }
+});
+
+// ===== File input + drag-drop =====
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+[$('file-input'), $('file-input-zone')].forEach(input => {
+  input.addEventListener('change', () => {
+    if (input.files.length) loadFile(input.files[0]);
+    input.value = '';
+  });
+});
+
+// Drop on the empty drop zone.
+const drop = $('drop-zone');
+drop.addEventListener('dragover', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  drop.classList.add('dragover');
+});
+drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+drop.addEventListener('drop', e => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  drop.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+// Drop anywhere on the page once a doc is loaded.
+const overlay = $('drop-overlay');
+let dragCounter = 0;
+window.addEventListener('dragenter', e => {
+  if (!isFileDrag(e) || !state.doc) return;
+  dragCounter++;
+  overlay.classList.add('visible');
+});
+window.addEventListener('dragleave', () => {
+  if (!state.doc) return;
+  dragCounter = Math.max(0, dragCounter - 1);
+  if (dragCounter === 0) overlay.classList.remove('visible');
+});
+window.addEventListener('dragover', e => {
+  if (isFileDrag(e) && state.doc) e.preventDefault();
+});
+window.addEventListener('drop', e => {
+  if (!isFileDrag(e) || !state.doc) return;
+  e.preventDefault();
+  dragCounter = 0;
+  overlay.classList.remove('visible');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+// Click outside placed signature deselects.
+$('viewer-scroller').addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.sig-placed')) return;
+  if (state.selectedSig) {
+    state.selectedSig = null;
+    renderPage();
+  }
+});
+
+// Drop sidebar signature onto the page → add (don't replace). Uses the same
+// dragSrcIdx that the reorder logic sets on dragstart from a sig-card.
+$('page-stage').addEventListener('dragover', (e) => {
+  if (dragSrcIdx < 0) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  $('page-stage').classList.add('sig-dragover');
+});
+$('page-stage').addEventListener('dragleave', (e) => {
+  // Only clear if leaving the stage itself, not crossing a child.
+  if (e.target === $('page-stage')) $('page-stage').classList.remove('sig-dragover');
+});
+$('page-stage').addEventListener('drop', (e) => {
+  if (dragSrcIdx < 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const sig = state.signatures[dragSrcIdx];
+  $('page-stage').classList.remove('sig-dragover');
+  const srcIdx = dragSrcIdx;
+  dragSrcIdx = -1; // prevent the reorder branch on dragend
+  if (!sig) return;
+  const stage = $('page-stage');
+  const rect = stage.getBoundingClientRect();
+  const xFrac = (e.clientX - rect.left) / rect.width;
+  const yFrac = (e.clientY - rect.top) / rect.height;
+  placeSignature(sig, 'add', { xFrac, yFrac });
+});
+
+// Resize → re-render the page area to fit the new viewport.
+let resizeRaf = 0;
+window.addEventListener('resize', () => {
+  if (!state.doc) return;
+  cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(renderPage);
+});
+
+// ===== Modal wiring =====
+$('modal-close').addEventListener('click', closeModal);
+$('modal-cancel').addEventListener('click', closeModal);
+$('modal-backdrop').addEventListener('click', (e) => {
+  if (e.target === $('modal-backdrop')) closeModal();
+});
+for (const t of document.querySelectorAll('.modal-tab')) {
+  t.addEventListener('click', () => switchTab(t.dataset.tab));
+}
+$('type-input').addEventListener('input', updateTypePreview);
+$('modal-save').addEventListener('click', saveModalSignature);
+
+// Keyboard: Esc closes modal; Delete removes selected signature.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if ($('modal-backdrop').classList.contains('visible')) closeModal();
+    else if (state.selectedSig) {
+      state.selectedSig = null;
+      renderPage();
+    }
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedSig && !e.target.matches('input, textarea')) {
+    const { pageIdx, sigIdx } = state.selectedSig;
+    state.doc.pages[pageIdx].signatures.splice(sigIdx, 1);
+    state.selectedSig = null;
+    renderPage();
+    renderThumbs();
+    refreshToolbar();
+    e.preventDefault();
+  }
+});
+
+// ===== Init =====
+state.signatures = loadSignatures();
+initTypePicker();
+renderAll();
+
+// Expose for testing/debugging.
+window._signdoc = { state, loadFile, placeSignature, buildSignedPdf };
+</script>
+</body>
+</html>

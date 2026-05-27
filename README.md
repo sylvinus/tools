@@ -18,6 +18,7 @@ A collection of frontend-only HTML5 utilities. Everything runs in the browser â€
 | [Overlay](media/overlay/) | Stack images and PDF plans, drag/rotate/scale them, and hide colors you don't want to see. Auto-overlay aligns layers for you. |
 | [Visual diff](media/visualdiff/) | Side-by-side diff for two PDFs (or images, treated as single-page PDFs). Matches pages across documents, highlights text changes from extracted PDF text, and flags purely visual differences (e.g. architectural drawings). |
 | [Text diff](media/textdiff/) | Side-by-side text diff. Paste text or drop a file (PDF text layer, DOCX, ODT, HTML, JSON, or any text file). Word-level inline highlights, jump between change hunks, ignore-whitespace toggle. |
+| [Sign document](media/signdoc/) | Drop a PDF or image, add hand-drawn or typed cursive signatures, drag them into place, apply to all pages, and download a signed copy. Signatures saved in localStorage for reuse. |
 
 ### Board Games
 
