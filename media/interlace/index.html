@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interlace PDFs</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+a { color: #79b8ff; }
+button { font: inherit; }
+
+header {
+  padding: 1rem 1.5rem .75rem;
+  border-bottom: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+header .breadcrumb {
+  font-size: .85rem;
+  color: #8b949e;
+  margin-bottom: .15rem;
+}
+
+header .breadcrumb a { color: #8b949e; text-decoration: underline; text-decoration-color: #30363d; }
+header .breadcrumb a:hover { color: #c9d1d9; }
+
+header h1 { font-size: 1.25rem; font-weight: 600; }
+
+/* Top toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar .spacer { flex: 1; }
+.toolbar .sep { width: 1px; height: 1.2rem; background: #30363d; }
+
+button {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: .35rem .7rem;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+
+button:hover { background: #30363d; }
+button:active { background: #3a424b; }
+button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+button.btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  font-weight: 600;
+}
+button.btn-primary:hover { background: #2ea043; border-color: #46c057; }
+button.btn-primary:active { background: #1c7430; }
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  cursor: pointer;
+  user-select: none;
+  padding: 0 .25rem;
+}
+
+.checkbox-group input { accent-color: #58a6ff; }
+
+.summary {
+  font-size: .8rem;
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+
+.summary .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: .75rem;
+  background: rgba(110,118,129,.15);
+  color: #8b949e;
+}
+
+.summary .pill.total { background: rgba(88,166,255,.15); color: #79b8ff; }
+.summary .pill.extra { background: rgba(229,192,123,.15); color: #ffd866; }
+.summary .pill.edited { background: rgba(163,113,247,.15); color: #d2a8ff; }
+
+/* Workspace */
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Source panes */
+.inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  flex-shrink: 0;
+}
+
+.workspace.empty .inputs { flex: 1; min-height: 0; }
+
+.input-pane {
+  display: flex;
+  flex-direction: column;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+  transition: border-color .15s, background .15s;
+}
+
+.input-pane.dragover { border-color: #58a6ff; background: #1c2230; }
+.input-pane.loaded { border-color: rgba(46,160,67,.5); }
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  font-size: .8rem;
+  flex-shrink: 0;
+}
+
+.side-tag {
+  font-weight: 600;
+  color: #8b949e;
+  background: #161b22;
+  border: 1px solid #21262d;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: .7rem;
+  letter-spacing: .04em;
+}
+
+.input-pane.loaded .side-tag { color: #7ee787; border-color: rgba(46,160,67,.4); }
+
+.pane-source {
+  flex: 1;
+  color: #8b949e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-pane.loaded .pane-source { color: #c9d1d9; }
+
+.pdf-btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 5px;
+  padding: .2rem .55rem;
+  font-size: .73rem;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+}
+
+.pdf-btn:hover { background: #30363d; }
+.pdf-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pdf-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+.pane-clear {
+  background: transparent;
+  border: 1px solid #21262d;
+  color: #6e7681;
+  border-radius: 5px;
+  padding: .2rem .5rem;
+  font-size: .73rem;
+}
+
+.pane-clear:hover { color: #c9d1d9; border-color: #30363d; }
+
+.pane-body {
+  flex: 1;
+  min-height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: .75rem 1rem;
+  color: #6e7681;
+  font-size: .85rem;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.input-pane.loaded .pane-body { color: #8b949e; }
+
+.pane-body .file-meta { color: #c9d1d9; font-weight: 500; }
+
+.input-pane .drop-hint {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28,34,48,.92);
+  color: #58a6ff;
+  font-size: 1rem;
+  font-weight: 600;
+  pointer-events: none;
+  border: 2px dashed #58a6ff;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.input-pane.dragover .drop-hint { display: flex; }
+
+/* Preview */
+.preview {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+}
+
+.workspace.empty .preview { display: none; }
+
+.preview-title {
+  position: sticky;
+  top: 0;
+  background: #0f1117;
+  padding: .3rem 0 .6rem;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #8b949e;
+  z-index: 5;
+}
+
+.thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: .75rem;
+}
+
+.thumb {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  cursor: grab;
+  user-select: none;
+}
+
+.thumb.side-a { border-left: 3px solid #58a6ff; }
+.thumb.side-b { border-left: 3px solid #3fb950; }
+
+.thumb.dragging { opacity: .35; cursor: grabbing; }
+
+/* Insertion marker, drawn in the grid gutter next to the hovered page. */
+.thumb.drop-before::before,
+.thumb.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: #58a6ff;
+}
+.thumb.drop-before::before { left: -7px; }
+.thumb.drop-after::after { right: -7px; }
+
+.thumb-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border-radius: 4px;
+  background: rgba(13,17,23,.85);
+  border: 1px solid #30363d;
+  color: #8b949e;
+  font-size: .8rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .12s, color .12s, border-color .12s;
+}
+
+.thumb:hover .thumb-del, .thumb-del:focus-visible { opacity: 1; }
+
+.thumb-del:hover {
+  background: rgba(248,81,73,.18);
+  border-color: rgba(248,81,73,.5);
+  color: #ff8b80;
+}
+
+.thumb-canvas {
+  background: #0d1117;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* One box shape for every page: portrait and landscape pages are scaled to
+     fit inside it, which keeps the grid aligned. */
+  aspect-ratio: 1 / 1.414;
+}
+
+.thumb-canvas canvas {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+
+.thumb-label {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .7rem;
+  color: #8b949e;
+  font-variant-numeric: tabular-nums;
+}
+
+.thumb-label .pos {
+  color: #6e7681;
+  min-width: 1.6em;
+}
+
+.thumb-label .badge {
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.badge-a { background: rgba(88,166,255,.15); color: #79b8ff; }
+.badge-b { background: rgba(63,185,80,.15); color: #7ee787; }
+
+.preview-empty {
+  color: #6e7681;
+  font-size: .9rem;
+  font-style: italic;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+/* Status banner */
+.status-banner {
+  position: fixed;
+  left: 50%;
+  top: 1.1rem;
+  transform: translateX(-50%);
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: .6rem 1rem;
+  font-size: .85rem;
+  color: #c9d1d9;
+  box-shadow: 0 6px 20px rgba(0,0,0,.6);
+  display: none;
+  z-index: 200;
+  min-width: 320px;
+}
+
+.status-banner.visible { display: block; }
+
+.status-banner .progress {
+  height: 3px;
+  background: #30363d;
+  border-radius: 2px;
+  margin-top: .4rem;
+  overflow: hidden;
+}
+
+.status-banner .progress-fill {
+  height: 100%;
+  background: #58a6ff;
+  width: 0;
+  transition: width .2s;
+}
+
+.error-banner {
+  background: rgba(248,81,73,.12);
+  border-bottom: 1px solid rgba(248,81,73,.3);
+  color: #ff8b80;
+  padding: .5rem 1rem;
+  font-size: .82rem;
+  display: none;
+}
+
+.error-banner.visible { display: block; }
+
+.notice-banner {
+  background: rgba(229,192,123,.1);
+  border-bottom: 1px solid rgba(229,192,123,.25);
+  color: #ffd866;
+  padding: .5rem 1rem;
+  font-size: .82rem;
+  display: none;
+}
+
+.notice-banner.visible { display: block; }
+
+.hint {
+  color: #6e7681;
+  font-size: .78rem;
+  padding: 0 1rem .75rem;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="breadcrumb"><a href="../../">Tools</a> / Media /</div>
+  <h1>Interlace PDFs</h1>
+</header>
+
+<div class="toolbar">
+  <button class="icon-btn btn-primary" id="btn-download" disabled title="Build the interlaced PDF and download it">
+    <svg viewBox="0 0 16 16"><path d="M8 3v8M5 8l3 3 3-3M3 13h10"/></svg>
+    Download PDF
+  </button>
+  <button class="icon-btn" id="btn-swap" disabled title="Swap A and B">
+    <svg viewBox="0 0 16 16"><path d="M3 5h9l-2-2M13 11H4l2 2"/></svg>
+    Swap
+  </button>
+  <button class="icon-btn" id="btn-reset" disabled title="Go back to the plain interlaced order">
+    <svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 105-5 5 5 0 00-3.5 1.5L3 6M3 3v3h3"/></svg>
+    Reset order
+  </button>
+  <button class="icon-btn" id="btn-clear" disabled>
+    <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    Clear
+  </button>
+  <div class="sep"></div>
+  <label class="checkbox-group" title="Take A's pages from the last one to the first">
+    <input type="checkbox" id="opt-rev-a"> Reverse A
+  </label>
+  <label class="checkbox-group" title="Take B's pages from the last one to the first — what you need when the back sides came out of the feeder in reverse order">
+    <input type="checkbox" id="opt-rev-b"> Reverse B
+  </label>
+  <div class="spacer"></div>
+  <div class="summary" id="summary"></div>
+</div>
+
+<div class="error-banner" id="error-banner"></div>
+<div class="notice-banner" id="notice-banner"></div>
+
+<div class="workspace empty" id="workspace">
+
+  <div class="inputs">
+    <div class="input-pane" data-side="a" id="pane-a">
+      <div class="pane-header">
+        <span class="side-tag">A · FIRST</span>
+        <span class="pane-source" id="src-a">No file</span>
+        <button class="pdf-btn" title="Pick a PDF — pick two at once to fill both sides">
+          <svg viewBox="0 0 16 16"><path d="M8 11V3M5 6l3-3 3 3M3 13h10"/></svg>
+          PDF
+          <input type="file" id="file-a" accept="application/pdf,.pdf" multiple>
+        </button>
+        <button class="pane-clear" id="pane-clear-a" title="Clear this side">×</button>
+      </div>
+      <div class="pane-body" id="body-a">Drop a PDF here</div>
+      <div class="drop-hint">Drop PDF to load as A</div>
+    </div>
+    <div class="input-pane" data-side="b" id="pane-b">
+      <div class="pane-header">
+        <span class="side-tag">B · SECOND</span>
+        <span class="pane-source" id="src-b">No file</span>
+        <button class="pdf-btn" title="Pick a PDF — pick two at once to fill both sides">
+          <svg viewBox="0 0 16 16"><path d="M8 11V3M5 6l3-3 3 3M3 13h10"/></svg>
+          PDF
+          <input type="file" id="file-b" accept="application/pdf,.pdf" multiple>
+        </button>
+        <button class="pane-clear" id="pane-clear-b" title="Clear this side">×</button>
+      </div>
+      <div class="pane-body" id="body-b">Drop a PDF here</div>
+      <div class="drop-hint">Drop PDF to load as B</div>
+    </div>
+  </div>
+
+  <div class="hint">
+    Output order is A1, B1, A2, B2, … Drag a page to move it, or use its × to drop it, before downloading.
+    Pages are copied as they are, never re-rendered: text, vectors, fonts and image quality are untouched.
+    Internal links, bookmarks and form fields are carried over.
+  </div>
+
+  <div class="preview" id="preview">
+    <div class="preview-title" id="preview-title">Result order</div>
+    <div class="thumbs" id="thumbs"></div>
+  </div>
+
+</div>
+
+<div class="status-banner" id="status-banner">
+  <span id="status-text">Working...</span>
+  <div class="progress"><div class="progress-fill" id="status-progress"></div></div>
+</div>
+
+<script defer src="./lib/pdf-lib.min.js"></script>
+<script type="module">
+const $ = id => document.getElementById(id);
+const SIDES = ['a', 'b'];
+
+// ===== State =====
+const state = {
+  // Per side: the File (re-read at build time so the ArrayBuffer given to
+  // PDF.js — which transfers it to its worker — is never reused), the PDF.js
+  // document used for thumbnails, and each page's aspect ratio.
+  files: { a: null, b: null },
+  docs: { a: null, b: null },
+  counts: { a: 0, b: 0 },
+  // The page list that gets written. Recomputed from the options until the
+  // user moves or removes a page, from then on it is theirs until they load a
+  // file, flip an option, or hit Reset order.
+  order: [],
+  edited: false,
+  thumbs: new Map(), // 'a:3' -> element
+  loadToken: { a: 0, b: 0 },
+  loading: 0,
+};
+
+// ===== PDF.js =====
+let pdfjsLib = null;
+async function loadPdfJs() {
+  if (pdfjsLib) return pdfjsLib;
+  pdfjsLib = await import('./lib/pdf.min.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.mjs';
+  return pdfjsLib;
+}
+
+// ===== Status / messages =====
+function showStatus(text, progress) {
+  $('status-banner').classList.add('visible');
+  $('status-text').textContent = text;
+  $('status-progress').style.width = `${(progress || 0) * 100}%`;
+}
+function hideStatus() {
+  $('status-banner').classList.remove('visible');
+  $('status-progress').style.width = '0%';
+}
+function showError(msg) {
+  const el = $('error-banner');
+  if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function showNotice(msg) {
+  const el = $('notice-banner');
+  if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+// ===== Interlacing (pdf-lib) =====
+// Pages are copied object-for-object: content streams, fonts, images and
+// vectors are never re-rendered, so the output keeps the original quality.
+//
+// pdf-lib's copier follows every indirect reference it meets, so anything
+// pointing back at a page (an annotation's /P, a GoTo destination, an article
+// bead) would drag a second, orphaned copy of that page into the output and
+// leave the link dangling. We strip those references before copying and
+// restore them afterwards against the copied pages.
+
+const {
+  PDFDocument, PDFName, PDFDict, PDFArray, PDFRef, PDFNumber, PDFNull,
+  PDFString, PDFHexString,
+} = PDFLib;
+
+const pn = PDFName.of.bind(PDFName);
+
+// Typed lookups throw on a value of the wrong type, which a malformed PDF can
+// easily produce. These dereference and type-check without throwing.
+const asDict = v => (v instanceof PDFDict ? v : null);
+const asArray = v => (v instanceof PDFArray ? v : null);
+const getDict = (container, key) => (container ? asDict(container.lookup(key)) : null);
+const getArray = (container, key) => (container ? asArray(container.lookup(key)) : null);
+
+// --- Destinations ---
+
+// Name trees are usually a single node here; a linear walk avoids having to
+// interpret /Limits.
+function lookupNameTree(ctx, nodeRef, key, depth) {
+  const node = asDict(ctx.lookup(nodeRef));
+  if (!node || (depth || 0) > 32) return null;
+  const names = getArray(node, pn('Names'));
+  if (names) {
+    for (let i = 0; i + 1 < names.size(); i += 2) {
+      const k = names.lookup(i);
+      if ((k instanceof PDFString || k instanceof PDFHexString) && k.asString() === key) {
+        return names.get(i + 1);
+      }
+    }
+  }
+  const kids = getArray(node, pn('Kids'));
+  if (kids) {
+    for (let i = 0; i < kids.size(); i++) {
+      const hit = lookupNameTree(ctx, kids.get(i), key, (depth || 0) + 1);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+// Resolve a destination (explicit array, named destination, or { D: [...] })
+// down to its explicit array form.
+function resolveDestArray(doc, dest) {
+  const ctx = doc.context;
+  let value = dest;
+  for (let hops = 0; hops < 8; hops++) {
+    if (value instanceof PDFRef) { value = ctx.lookup(value); continue; }
+    if (value instanceof PDFArray) return value;
+    if (value instanceof PDFDict) {
+      const d = value.get(pn('D'));
+      if (!d) return null;
+      value = d;
+      continue;
+    }
+    if (value instanceof PDFName || value instanceof PDFString || value instanceof PDFHexString) {
+      const key = value instanceof PDFName ? value.decodeText() : value.asString();
+      const dests = getDict(doc.catalog, pn('Dests'));
+      let hit = dests ? dests.get(PDFName.of(key)) : null;
+      if (!hit) {
+        const names = getDict(doc.catalog, pn('Names'));
+        const tree = names ? names.get(pn('Dests')) : null;
+        if (tree) hit = lookupNameTree(ctx, tree, key, 0);
+      }
+      if (!hit) return null;
+      value = hit;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+// Everything after the page in a destination array is a view spec
+// ([/XYZ left top zoom], [/Fit], ...). Refs can't appear there in valid PDFs;
+// drop anything unexpected rather than carry a pointer into the source.
+function destTail(arr) {
+  const tail = [];
+  for (let i = 1; i < arr.size(); i++) {
+    const v = arr.get(i);
+    tail.push((v instanceof PDFNumber || v instanceof PDFName) ? v : PDFNull);
+  }
+  return tail;
+}
+
+// A link or bookmark jumps via /Dest, or via an /A action of subtype /GoTo.
+function findGoToDest(dict) {
+  if (dict.get(pn('Dest'))) return { holder: dict, key: pn('Dest'), raw: dict.get(pn('Dest')) };
+  const action = getDict(dict, pn('A'));
+  if (action) {
+    const s = action.get(pn('S'));
+    if (s instanceof PDFName && s.decodeText() === 'GoTo') {
+      const d = action.get(pn('D'));
+      if (d) return { holder: action, key: pn('D'), raw: d, onAction: true };
+    }
+  }
+  return null;
+}
+
+function pageIndexByRef(doc) {
+  const map = new Map();
+  doc.getPages().forEach((page, i) => map.set(page.ref.toString(), i));
+  return map;
+}
+
+// Strip page-pointing references from every annotation, recording what to put
+// back. Positions (page index, annot index) survive copying, so they are all
+// we need to re-attach afterwards.
+function stripAnnotRefs(doc) {
+  const byRef = pageIndexByRef(doc);
+  const fixups = [];
+  doc.getPages().forEach((page, pageIndex) => {
+    // Article beads point at pages and are all but unused in practice; a
+    // dangling bead is worse than none.
+    page.node.delete(pn('B'));
+    const annots = getArray(page.node, pn('Annots'));
+    if (!annots) return;
+    for (let annotIndex = 0; annotIndex < annots.size(); annotIndex++) {
+      const annot = asDict(annots.lookup(annotIndex));
+      if (!annot) continue;
+      if (annot.get(pn('P'))) {
+        annot.delete(pn('P'));
+        fixups.push({ pageIndex, annotIndex, kind: 'P', targetPage: pageIndex });
+      }
+      annot.delete(pn('SE')); // structure-tree back-pointer; we don't copy that tree
+      const dest = findGoToDest(annot);
+      if (!dest) continue;
+      const arr = resolveDestArray(doc, dest.raw);
+      const first = arr ? arr.get(0) : null;
+      const target = first ? byRef.get(String(first)) : undefined;
+      if (target === undefined) {
+        // Points outside the page tree, or a named destination we can't
+        // resolve. Drop it: keeping it would either dangle or drag an
+        // orphaned page copy into the output.
+        if (!arr || first instanceof PDFRef) dest.holder.delete(dest.key);
+        continue;
+      }
+      dest.holder.delete(dest.key);
+      fixups.push({
+        pageIndex, annotIndex, kind: 'dest', targetPage: target,
+        tail: destTail(arr), onAction: !!dest.onAction,
+      });
+    }
+  });
+  return fixups;
+}
+
+// Same for the outline (bookmark) tree, which lives outside the page tree.
+// Items are recorded in pre-order; the copied tree has the same shape, so a
+// parallel walk re-attaches them without needing the copier's ref mapping.
+function stripOutlineRefs(doc) {
+  const ctx = doc.context;
+  const rootEntry = doc.catalog.get(pn('Outlines'));
+  const root = getDict(doc.catalog, pn('Outlines'));
+  if (!root || !root.get(pn('First'))) return null;
+  const byRef = pageIndexByRef(doc);
+  const entries = [];
+  const seen = new Set();
+  const walk = (ref, depth) => {
+    let cur = ref;
+    while (cur instanceof PDFRef) {
+      const key = cur.toString();
+      if (seen.has(key) || seen.size > 50000 || depth > 64) return;
+      seen.add(key);
+      const item = asDict(ctx.lookup(cur));
+      if (!item) return;
+      item.delete(pn('SE'));
+      const entry = { targetPage: null };
+      const dest = findGoToDest(item);
+      if (dest) {
+        const arr = resolveDestArray(doc, dest.raw);
+        const first = arr ? arr.get(0) : null;
+        const target = first ? byRef.get(String(first)) : undefined;
+        if (target !== undefined) {
+          dest.holder.delete(dest.key);
+          entry.targetPage = target;
+          entry.tail = destTail(arr);
+          entry.onAction = !!dest.onAction;
+        } else if (!arr || first instanceof PDFRef) {
+          dest.holder.delete(dest.key);
+        }
+      }
+      entries.push(entry);
+      const first = item.get(pn('First'));
+      if (first) walk(first, depth + 1);
+      cur = item.get(pn('Next'));
+    }
+  };
+  walk(root.get(pn('First')), 0);
+  return { rootEntry, entries };
+}
+
+// What a merge cannot carry over. Reported to the user rather than silently
+// dropped.
+function inspectSource(doc) {
+  const cat = doc.catalog;
+  const info = { attachments: false, layers: false, xfa: false, signatures: false, fields: [] };
+  const names = getDict(cat, pn('Names'));
+  info.attachments = !!(names && names.get(pn('EmbeddedFiles')));
+  info.layers = !!cat.get(pn('OCProperties'));
+  const acro = getDict(cat, pn('AcroForm'));
+  if (acro) {
+    info.xfa = !!acro.get(pn('XFA'));
+    const fields = getArray(acro, pn('Fields'));
+    if (fields) {
+      for (let i = 0; i < fields.size(); i++) {
+        const f = asDict(fields.lookup(i));
+        if (!f) continue;
+        const ft = f.get(pn('FT'));
+        if (ft instanceof PDFName && ft.decodeText() === 'Sig') info.signatures = true;
+        const t = f.lookup(pn('T'));
+        if (t instanceof PDFString || t instanceof PDFHexString) info.fields.push(t.decodeText());
+      }
+    }
+  }
+  return info;
+}
+
+// --- Output assembly ---
+
+function restoreAnnotRefs(ctx, copiedPages, fixups, pageRefFor) {
+  for (const fx of fixups) {
+    const page = copiedPages.get(fx.pageIndex);
+    if (!page) continue; // that page was dropped from the output
+    const annots = getArray(page.node, pn('Annots'));
+    if (!annots) continue;
+    const annot = asDict(annots.lookup(fx.annotIndex));
+    if (!annot) continue;
+    const targetRef = pageRefFor(fx.targetPage);
+    if (!targetRef) continue;
+    if (fx.kind === 'P') {
+      annot.set(pn('P'), targetRef);
+    } else {
+      const arr = ctx.obj([targetRef, ...fx.tail]);
+      if (fx.onAction) {
+        const action = getDict(annot, pn('A'));
+        if (action) action.set(pn('D'), arr);
+      } else {
+        annot.set(pn('Dest'), arr);
+      }
+    }
+  }
+}
+
+// Walk the copied outline tree in the same pre-order as the source walk and
+// re-attach destinations. Returns the top-level items so they can be re-homed
+// under a new root.
+function restoreOutline(ctx, copiedRoot, entries, pageRefFor) {
+  const tops = [];
+  let i = 0;
+  const walk = (ref, depth, isTop) => {
+    let cur = ref;
+    while (cur instanceof PDFRef) {
+      const item = asDict(ctx.lookup(cur));
+      if (!item || depth > 64) return;
+      if (isTop) tops.push(cur);
+      const entry = entries[i++];
+      if (!entry) return;
+      if (entry.targetPage !== null) {
+        const targetRef = pageRefFor(entry.targetPage);
+        if (targetRef) {
+          const arr = ctx.obj([targetRef, ...entry.tail]);
+          if (entry.onAction) {
+            const action = getDict(item, pn('A'));
+            if (action) action.set(pn('D'), arr);
+          } else {
+            item.set(pn('Dest'), arr);
+          }
+        }
+      }
+      const first = item.get(pn('First'));
+      if (first) walk(first, depth + 1, false);
+      cur = item.get(pn('Next'));
+    }
+  };
+  walk(copiedRoot.get(pn('First')), 0, true);
+  return tops;
+}
+
+// copyPages only brings widget annotations across; the fields they belong to
+// have to be registered in the output's AcroForm to stay fillable.
+function adoptFormFields(out, copiedPages, srcDocs) {
+  const ctx = out.context;
+  let acro = getDict(out.catalog, pn('AcroForm'));
+  if (!acro) {
+    acro = ctx.obj({ Fields: [] });
+    out.catalog.set(pn('AcroForm'), ctx.register(acro));
+  }
+  let fields = getArray(acro, pn('Fields'));
+  if (!fields) { fields = ctx.obj([]); acro.set(pn('Fields'), fields); }
+
+  const seen = new Set();
+  for (const page of copiedPages) {
+    const annots = getArray(page.node, pn('Annots'));
+    if (!annots) continue;
+    for (let i = 0; i < annots.size(); i++) {
+      const ref = annots.get(i);
+      if (!(ref instanceof PDFRef)) continue;
+      let dict = asDict(ctx.lookup(ref));
+      if (!dict) continue;
+      const subtype = dict.get(pn('Subtype'));
+      if (!(subtype instanceof PDFName) || subtype.decodeText() !== 'Widget') continue;
+      // Climb to the root field: a widget is either the field itself or a kid.
+      let rootRef = ref;
+      for (let guard = 0; guard < 64; guard++) {
+        const parent = dict.get(pn('Parent'));
+        if (!(parent instanceof PDFRef)) break;
+        const parentDict = asDict(ctx.lookup(parent));
+        if (!parentDict) break;
+        rootRef = parent;
+        dict = parentDict;
+      }
+      const ft = dict.get(pn('FT'));
+      // Signatures never survive a merge; leaving the field unregistered keeps
+      // the visible appearance without advertising a broken signature.
+      if (ft instanceof PDFName && ft.decodeText() === 'Sig') continue;
+      if (!ft && !dict.get(pn('Kids'))) continue;
+      const key = rootRef.toString();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      fields.push(rootRef);
+    }
+  }
+
+  // Form-wide defaults: resource dictionary, default appearance, quadding.
+  for (const src of srcDocs) {
+    const srcAcro = getDict(src.catalog, pn('AcroForm'));
+    if (!srcAcro) continue;
+    for (const key of ['DR', 'DA', 'Q']) {
+      if (!acro.get(pn(key)) && srcAcro.get(pn(key))) acro.set(pn(key), srcAcro.get(pn(key)));
+    }
+  }
+  return seen.size;
+}
+
+// Carry the document information dictionary over from the first source.
+// Only direct scalars: a ref would point back into the source context.
+const INFO_KEYS = ['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer', 'CreationDate'];
+
+function copyDocInfo(out, src) {
+  const srcInfo = asDict(src.context.lookup(src.context.trailerInfo.Info));
+  const outInfo = asDict(out.context.lookup(out.context.trailerInfo.Info));
+  if (!srcInfo || !outInfo) return;
+  for (const key of INFO_KEYS) {
+    const value = srcInfo.get(pn(key));
+    if (value instanceof PDFString || value instanceof PDFHexString || value instanceof PDFName) {
+      outInfo.set(pn(key), value);
+    }
+  }
+}
+
+// Interlaced page order: A1, B1, A2, B2, ... Whichever document is longer
+// keeps its remaining pages, in order, at the end.
+function interlaceOrder(countA, countB, opts) {
+  const seq = (n, reverse, side) => {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push({ side, index: reverse ? n - 1 - i : i });
+    return out;
+  };
+  const a = seq(countA, opts.reverseA, 'a');
+  const b = seq(countB, opts.reverseB, 'b');
+  const order = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (i < a.length) order.push(a[i]);
+    if (i < b.length) order.push(b[i]);
+  }
+  return order;
+}
+
+// bytesA / bytesB: ArrayBuffers. order: the [{ side, index }] page list to
+// write, which the user may have reordered or shortened. opts: { labels }.
+async function buildInterlacedPdf(bytesA, bytesB, order, opts) {
+  // updateMetadata:false keeps pdf-lib from stamping its own producer over the
+  // information we copy from the first document.
+  const load = bytes => PDFDocument.load(bytes, { updateMetadata: false });
+  const [docA, docB] = await Promise.all([load(bytesA), load(bytesB)]);
+
+  const inspected = { a: inspectSource(docA), b: inspectSource(docB) };
+  const src = { a: docA, b: docB };
+  const annotFixups = { a: stripAnnotRefs(docA), b: stripAnnotRefs(docB) };
+  const outlines = { a: stripOutlineRefs(docA), b: stripOutlineRefs(docB) };
+
+  const out = await PDFDocument.create();
+  copyDocInfo(out, docA);
+
+  // Copy only the pages that end up in the output — an unused copy would be
+  // written out as an orphan object. One copyPages call per document keeps the
+  // copier's cache shared, so pages referencing each other stay consistent.
+  const copied = { a: new Map(), b: new Map() };
+  for (const side of SIDES) {
+    const pageCount = src[side].getPageCount();
+    const wanted = [...new Set(order.filter(e => e.side === side).map(e => e.index))]
+      .filter(i => i >= 0 && i < pageCount)
+      .sort((x, y) => x - y);
+    const pages = await out.copyPages(src[side], wanted);
+    wanted.forEach((sourceIndex, i) => copied[side].set(sourceIndex, pages[i]));
+  }
+
+  const finalOrder = order.filter(e => copied[e.side].has(e.index));
+  for (const entry of finalOrder) out.addPage(copied[entry.side].get(entry.index));
+
+  const ctx = out.context;
+  const pageRefFor = side => i => {
+    const page = copied[side].get(i);
+    return page ? page.ref : null; // null for a page the user removed
+  };
+  for (const side of SIDES) {
+    restoreAnnotRefs(ctx, copied[side], annotFixups[side], pageRefFor(side));
+  }
+
+  adoptFormFields(out, finalOrder.map(e => copied[e.side].get(e.index)), [docA, docB]);
+
+  // Bookmarks: one tree per source, kept apart under a named parent when both
+  // documents have one (a single merged list would be unreadable interlaced).
+  const trees = [];
+  for (const side of SIDES) {
+    const stripped = outlines[side];
+    if (!stripped) continue;
+    const rootRef = copyOutlineTree(out, src[side], stripped.rootEntry);
+    const root = rootRef ? asDict(ctx.lookup(rootRef)) : null;
+    if (!root) continue;
+    const tops = restoreOutline(ctx, root, stripped.entries, pageRefFor(side));
+    if (tops.length) trees.push({ side, rootRef, root, tops });
+  }
+  attachOutlines(out, trees, opts);
+
+  const bytes = await out.save();
+  return { bytes, order: finalOrder, inspected };
+}
+
+// Copying the root brings the whole tree along (items reference each other
+// through /First /Last /Next /Prev /Parent). Copy it through its reference so
+// the /Parent back-pointers land on the same copied root instead of a second
+// one; the copier caches by source ref.
+function copyOutlineTree(out, srcDoc, srcRootEntry) {
+  const copier = PDFLib.PDFObjectCopier.for(srcDoc.context, out.context);
+  const copied = copier.copy(srcRootEntry);
+  if (copied instanceof PDFRef) return copied;
+  if (copied instanceof PDFDict) return out.context.register(copied);
+  return null;
+}
+
+function attachOutlines(out, trees, opts) {
+  if (!trees.length) return;
+  const ctx = out.context;
+  if (trees.length === 1) {
+    const { root, rootRef } = trees[0];
+    root.set(pn('Type'), pn('Outlines'));
+    out.catalog.set(pn('Outlines'), rootRef);
+    return;
+  }
+  // Two trees: wrap each under an item named after its document.
+  const rootRef = ctx.nextRef();
+  const items = trees.map(tree => {
+    const item = ctx.obj({
+      Title: PDFHexString.fromText(opts.labels[tree.side]),
+      Parent: rootRef,
+      First: tree.root.get(pn('First')),
+      Last: tree.root.get(pn('Last')),
+      Count: tree.tops.length,
+    });
+    const ref = ctx.register(item);
+    for (const topRef of tree.tops) {
+      const top = asDict(ctx.lookup(topRef));
+      if (top) top.set(pn('Parent'), ref);
+    }
+    ctx.delete(tree.rootRef); // superseded by the wrapper item
+    return ref;
+  });
+  for (let i = 0; i < items.length; i++) {
+    const item = asDict(ctx.lookup(items[i]));
+    if (i > 0) item.set(pn('Prev'), items[i - 1]);
+    if (i < items.length - 1) item.set(pn('Next'), items[i + 1]);
+  }
+  const outlines = ctx.obj({
+    Type: pn('Outlines'),
+    First: items[0],
+    Last: items[items.length - 1],
+    Count: items.length,
+  });
+  ctx.assign(rootRef, outlines);
+  out.catalog.set(pn('Outlines'), rootRef);
+}
+
+// ===== Loading a side =====
+
+async function loadSide(side, file) {
+  const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  if (!isPdf) {
+    showError(`${file.name} is not a PDF.`);
+    return;
+  }
+  const token = ++state.loadToken[side];
+  state.loading++;
+  clearSide(side, { silent: true });
+  try {
+    showStatus(`Loading ${file.name}...`, 0.1);
+    const lib = await loadPdfJs();
+    // PDF.js transfers the buffer to its worker, so this copy is consumed here
+    // and the File is read again when building the output.
+    const buf = await file.arrayBuffer();
+    const doc = await lib.getDocument({ data: buf }).promise;
+    if (token !== state.loadToken[side]) { doc.destroy(); return; } // superseded
+    state.files[side] = file;
+    state.docs[side] = doc;
+    state.counts[side] = doc.numPages;
+    state.edited = false;
+  } catch (e) {
+    console.error(e);
+    showError(`Could not read ${file.name}: ${e.message || e}`);
+  } finally {
+    state.loading--;
+    hideStatus();
+    refresh();
+  }
+}
+
+function clearSide(side, opts) {
+  const doc = state.docs[side];
+  if (doc) doc.destroy();
+  state.files[side] = null;
+  state.docs[side] = null;
+  state.counts[side] = 0;
+  state.edited = false;
+  for (const [key, el] of state.thumbs) {
+    if (key.startsWith(side + ':')) { el.remove(); state.thumbs.delete(key); }
+  }
+  if (!opts || !opts.silent) refresh();
+}
+
+// ===== Preview =====
+
+let observer = null;
+function pageObserver() {
+  if (observer) return observer;
+  observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      observer.unobserve(entry.target);
+      renderThumb(entry.target);
+    }
+  }, { rootMargin: '400px 0px' });
+  return observer;
+}
+
+async function renderThumb(el) {
+  const side = el.dataset.side;
+  const index = Number(el.dataset.index);
+  const doc = state.docs[side];
+  if (!doc || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  try {
+    const page = await doc.getPage(index + 1);
+    const wrap = el.querySelector('.thumb-canvas');
+    const cssWidth = wrap.clientWidth || 120;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const base = page.getViewport({ scale: 1 });
+    // Fit inside the box: portrait pages are width-bound, landscape ones are
+    // height-bound once the box keeps its aspect ratio.
+    const scale = Math.min(cssWidth / base.width, (wrap.clientHeight || 170) / base.height);
+    const viewport = page.getViewport({ scale: scale * dpr });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+    canvas.style.width = `${Math.round(viewport.width / dpr)}px`;
+    canvas.style.height = `${Math.round(viewport.height / dpr)}px`;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport, background: '#ffffff' }).promise;
+    wrap.replaceChildren(canvas);
+  } catch (e) {
+    // Expected when the side was cleared mid-render: the document is gone.
+    console.error(e);
+    if (state.docs[side] === doc) {
+      el.dataset.rendered = '';
+      pageObserver().observe(el);
+    }
+  }
+}
+
+function thumbFor(side, index) {
+  const key = `${side}:${index}`;
+  let el = state.thumbs.get(key);
+  if (el) return el;
+  el = document.createElement('div');
+  el.className = `thumb side-${side}`;
+  el.dataset.side = side;
+  el.dataset.index = String(index);
+  el.draggable = true;
+  const wrap = document.createElement('div');
+  wrap.className = 'thumb-canvas';
+  const label = document.createElement('div');
+  label.className = 'thumb-label';
+  label.innerHTML = `<span class="pos"></span><span class="badge badge-${side}">${side.toUpperCase()}</span>`;
+  const num = document.createElement('span');
+  num.textContent = `p${index + 1}`;
+  label.appendChild(num);
+  const del = document.createElement('button');
+  del.className = 'thumb-del';
+  del.type = 'button';
+  del.textContent = '×';
+  del.title = `Remove ${side.toUpperCase()} page ${index + 1} from the output`;
+  el.append(wrap, label, del);
+  state.thumbs.set(key, el);
+  pageObserver().observe(el);
+  return el;
+}
+
+// ===== Editing the order =====
+
+const orderKey = entry => `${entry.side}:${entry.index}`;
+const findEntry = key => state.order.findIndex(e => orderKey(e) === key);
+
+function removePage(key) {
+  const at = findEntry(key);
+  if (at < 0) return;
+  state.order.splice(at, 1);
+  state.edited = true;
+  refresh();
+}
+
+// Moves the dragged page in front of (or behind) the one it was dropped on.
+function movePage(fromKey, toKey, after) {
+  const from = findEntry(fromKey);
+  if (from < 0 || fromKey === toKey) return;
+  const [entry] = state.order.splice(from, 1);
+  let to = toKey === null ? state.order.length : findEntry(toKey) + (after ? 1 : 0);
+  if (to < 0) to = state.order.length;
+  state.order.splice(to, 0, entry);
+  state.edited = true;
+  refresh();
+}
+
+function clearDropMarkers() {
+  for (const el of $('thumbs').querySelectorAll('.drop-before, .drop-after')) {
+    el.classList.remove('drop-before', 'drop-after');
+  }
+}
+
+function setupOrderEditing() {
+  const container = $('thumbs');
+
+  container.addEventListener('click', e => {
+    const del = e.target.closest('.thumb-del');
+    if (!del) return;
+    removePage(del.parentElement.dataset.side + ':' + del.parentElement.dataset.index);
+  });
+
+  container.addEventListener('dragstart', e => {
+    const thumb = e.target.closest('.thumb');
+    if (!thumb) return;
+    state.dragKey = thumb.dataset.side + ':' + thumb.dataset.index;
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox only starts a drag once some data is set.
+    e.dataTransfer.setData('text/plain', state.dragKey);
+    thumb.classList.add('dragging');
+  });
+
+  container.addEventListener('dragend', () => {
+    state.dragKey = null;
+    clearDropMarkers();
+    for (const el of container.querySelectorAll('.dragging')) el.classList.remove('dragging');
+  });
+
+  container.addEventListener('dragover', e => {
+    if (!state.dragKey) return; // a file being dragged in, not a page
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    clearDropMarkers();
+    const thumb = e.target.closest('.thumb');
+    if (!thumb) return;
+    const box = thumb.getBoundingClientRect();
+    thumb.classList.add(e.clientX > box.left + box.width / 2 ? 'drop-after' : 'drop-before');
+  });
+
+  container.addEventListener('dragleave', e => {
+    if (e.target === container && !container.contains(e.relatedTarget)) clearDropMarkers();
+  });
+
+  container.addEventListener('drop', e => {
+    if (!state.dragKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const thumb = e.target.closest('.thumb');
+    const box = thumb ? thumb.getBoundingClientRect() : null;
+    const after = box ? e.clientX > box.left + box.width / 2 : false;
+    const toKey = thumb ? thumb.dataset.side + ':' + thumb.dataset.index : null;
+    clearDropMarkers();
+    movePage(state.dragKey, toKey, after);
+    state.dragKey = null;
+  });
+}
+
+function renderPreview() {
+  const container = $('thumbs');
+  const frag = document.createDocumentFragment();
+  state.order.forEach((entry, i) => {
+    const el = thumbFor(entry.side, entry.index);
+    el.querySelector('.pos').textContent = String(i + 1);
+    frag.appendChild(el);
+  });
+  container.replaceChildren(frag);
+}
+
+// ===== Refresh =====
+
+function options() {
+  return {
+    reverseA: $('opt-rev-a').checked,
+    reverseB: $('opt-rev-b').checked,
+    labels: {
+      a: state.files.a ? state.files.a.name : 'A',
+      b: state.files.b ? state.files.b.name : 'B',
+    },
+  };
+}
+
+function refresh() {
+  // Any change to the inputs or the order invalidates what the last build
+  // reported.
+  showNotice(null);
+  const counts = state.counts;
+  for (const side of SIDES) {
+    const pane = $('pane-' + side);
+    const file = state.files[side];
+    pane.classList.toggle('loaded', !!file);
+    $('src-' + side).textContent = file ? file.name : 'No file';
+    $('body-' + side).innerHTML = file
+      ? `<span><span class="file-meta">${counts[side]} page${counts[side] === 1 ? '' : 's'}</span> · ${formatSize(file.size)}</span>`
+      : 'Drop a PDF here';
+  }
+
+  const both = counts.a > 0 && counts.b > 0;
+  const any = counts.a > 0 || counts.b > 0;
+  // Acting on the sides while one is still loading would race the load.
+  const busy = state.loading > 0;
+
+  if (!both) {
+    state.order = [];
+    state.edited = false;
+  } else if (state.edited) {
+    // Keep the user's arrangement, minus anything a reload made stale.
+    state.order = state.order.filter(e => e.index < counts[e.side]);
+  } else {
+    state.order = interlaceOrder(counts.a, counts.b, options());
+  }
+  const dropped = both ? interlaceOrder(counts.a, counts.b, options()).length - state.order.length : 0;
+
+  $('btn-download').disabled = !state.order.length || busy;
+  $('btn-swap').disabled = !any || busy;
+  $('btn-clear').disabled = !any || busy;
+  $('btn-reset').disabled = !state.edited || busy;
+  $('workspace').classList.toggle('empty', !any);
+
+  renderPreview();
+
+  const pills = [];
+  if (both) {
+    pills.push(`<span class="pill total">${state.order.length} page${state.order.length === 1 ? '' : 's'} out</span>`);
+    if (state.edited) {
+      pills.push(`<span class="pill edited">order edited${dropped > 0 ? ` · ${dropped} removed` : ''}</span>`);
+    } else {
+      const extra = Math.abs(counts.a - counts.b);
+      if (extra) {
+        const longer = counts.a > counts.b ? 'A' : 'B';
+        pills.push(`<span class="pill extra">${extra} extra page${extra === 1 ? '' : 's'} from ${longer} at the end</span>`);
+      }
+    }
+  } else if (any) {
+    pills.push('<span class="pill">Waiting for the second PDF</span>');
+  }
+  $('summary').innerHTML = pills.join(' ');
+  $('preview-title').textContent = state.edited ? 'Result order (edited)' : 'Result order';
+  $('preview-title').style.display = both ? '' : 'none';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// ===== Download =====
+
+function noticeFor(inspected) {
+  const dropped = [];
+  const add = (cond, label) => { if (cond) dropped.push(label); };
+  add(inspected.a.attachments || inspected.b.attachments, 'file attachments');
+  add(inspected.a.layers || inspected.b.layers, 'layer (OCG) switching');
+  add(inspected.a.signatures || inspected.b.signatures, 'digital signatures');
+  add(inspected.a.xfa || inspected.b.xfa, 'XFA form logic (the static form fields are kept)');
+  const parts = [];
+  if (dropped.length) parts.push(`Not carried over by the merge: ${dropped.join(', ')}.`);
+  const shared = inspected.a.fields.filter(name => inspected.b.fields.includes(name));
+  if (shared.length) {
+    parts.push(`Both PDFs have form fields named ${shared.slice(0, 3).map(n => `"${n}"`).join(', ')}${shared.length > 3 ? `, +${shared.length - 3} more` : ''} — same-named fields share one value in the output.`);
+  }
+  return parts.join(' ');
+}
+
+async function download() {
+  if (!state.files.a || !state.files.b || !state.order.length) return;
+  $('btn-download').disabled = true;
+  let notice = null;
+  try {
+    showStatus('Building the interlaced PDF...', 0.3);
+    // Re-read both files: the buffers handed to PDF.js were transferred away.
+    const [bufA, bufB] = await Promise.all([state.files.a.arrayBuffer(), state.files.b.arrayBuffer()]);
+    showStatus('Building the interlaced PDF...', 0.6);
+    const result = await buildInterlacedPdf(bufA, bufB, state.order, options());
+    const blob = new Blob([result.bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${state.files.a.name.replace(/\.pdf$/i, '')}-interlaced.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    showError(null);
+    notice = noticeFor(result.inspected);
+  } catch (e) {
+    console.error(e);
+    const encrypted = /encrypt/i.test(e.message || '');
+    showError(encrypted
+      ? 'One of the PDFs is password-protected and cannot be merged.'
+      : `Could not build the PDF: ${e.message || e}`);
+  } finally {
+    hideStatus();
+    refresh(); // restores the button states, and clears the previous notice
+    if (notice) showNotice(notice);
+  }
+}
+
+// ===== Input wiring =====
+
+function isFileDrag(e) {
+  return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files');
+}
+
+function setupPane(side) {
+  const pane = $('pane-' + side);
+  const fileInput = $('file-' + side);
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFiles(side, fileInput.files);
+    fileInput.value = '';
+  });
+
+  $('pane-clear-' + side).addEventListener('click', () => clearSide(side));
+
+  pane.addEventListener('dragover', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    pane.classList.add('dragover');
+  });
+  pane.addEventListener('dragleave', e => {
+    if (e.target === pane || !pane.contains(e.relatedTarget)) pane.classList.remove('dragover');
+  });
+  pane.addEventListener('drop', e => {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pane.classList.remove('dragover');
+    handleFiles(side, e.dataTransfer.files);
+  });
+}
+
+// Two files dropped at once fill both sides, in the order they were dropped.
+async function handleFiles(side, fileList) {
+  const files = Array.from(fileList);
+  if (!files.length) return;
+  showError(null);
+  const other = side === 'a' ? 'b' : 'a';
+  await loadSide(side, files[0]);
+  if (files[1]) await loadSide(other, files[1]);
+}
+
+$('btn-clear').addEventListener('click', () => {
+  clearSide('a', { silent: true });
+  clearSide('b', { silent: true });
+  showError(null);
+  showNotice(null);
+  refresh();
+});
+
+$('btn-swap').addEventListener('click', () => {
+  for (const key of ['files', 'docs', 'counts']) {
+    const tmp = state[key].a;
+    state[key].a = state[key].b;
+    state[key].b = tmp;
+  }
+  // Thumbnails are keyed by side, so re-key them too instead of re-rendering.
+  const swapped = new Map();
+  for (const [key, el] of state.thumbs) {
+    const [oldSide, index] = key.split(':');
+    const newSide = oldSide === 'a' ? 'b' : 'a';
+    el.className = `thumb side-${newSide}`;
+    el.dataset.side = newSide;
+    const badge = el.querySelector('.badge');
+    badge.className = `badge badge-${newSide}`;
+    badge.textContent = newSide.toUpperCase();
+    swapped.set(`${newSide}:${index}`, el);
+  }
+  state.thumbs = swapped;
+  state.order = state.order.map(e => ({ side: e.side === 'a' ? 'b' : 'a', index: e.index }));
+  const revA = $('opt-rev-a').checked;
+  $('opt-rev-a').checked = $('opt-rev-b').checked;
+  $('opt-rev-b').checked = revA;
+  refresh();
+});
+
+for (const id of ['opt-rev-a', 'opt-rev-b']) {
+  $(id).addEventListener('change', () => { state.edited = false; refresh(); });
+}
+
+$('btn-reset').addEventListener('click', () => {
+  state.edited = false;
+  refresh();
+});
+$('btn-download').addEventListener('click', download);
+
+// A drop anywhere outside the panes would otherwise navigate away from the page.
+window.addEventListener('dragover', e => { if (isFileDrag(e)) e.preventDefault(); });
+window.addEventListener('drop', e => { if (isFileDrag(e)) e.preventDefault(); });
+
+// ===== Init =====
+SIDES.forEach(setupPane);
+setupOrderEditing();
+refresh();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+
+// Expose for testing
+window._interlace = { state, buildInterlacedPdf, interlaceOrder, loadSide, refresh, removePage, movePage };
+</script>
+</body>
+</html>
